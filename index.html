@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alagoinhas Eventos - Agenda de Cultura, Lazer e Esportes</title>
+    
+    <!-- Tailwind CSS Play CDN (supports class dark mode) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              accentBlue: '#2563eb',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Space Grotesk', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            screens: {
+              'xs': '400px',
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Custom stylesheet -->
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="transition-colors duration-300 antialiased font-sans no-scrollbar">
+
+    <!-- --- MINIMALIST LOADER --- -->
+    <div id="app-loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070c19] text-white p-6 overflow-hidden select-none transition-opacity duration-300">
+      <div class="flex flex-col items-center max-w-xs text-center w-full space-y-6">
+        
+        <!-- Pulse animation com LOGO -->
+        <div class="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center animate-pulse-border overflow-hidden">
+          <img src="logo.png" alt="Logo Alagoinhas Eventos" class="w-12 h-12 sm:w-14 sm:h-14 object-contain" />
+        </div>
+
+        <!-- Brand Text -->
+        <div class="space-y-1">
+          <h1 class="text-xl font-black tracking-tight font-display text-white">
+            ALAGOINHAS <span class="text-blue-400 font-bold">EVENTOS</span>
+          </h1>
+          <p class="text-slate-400 text-[11px] font-semibold tracking-wider uppercase">
+            Carregando Agenda...
+          </p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full space-y-2">
+          <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden border border-white/5 relative">
+            <div id="loader-progress-fill" class="h-full bg-blue-500 rounded-full transition-all duration-100 ease-out" style="width: 0%"></div>
+          </div>
+          <span id="loader-progress-text" class="text-[10px] font-mono text-slate-500 font-bold block">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- MAIN HEADER (BENTO STYLE) --- -->
+    <header class="py-3.5 px-4 sm:px-6 sticky top-0 z-40 shadow-md border-b transition-colors duration-300 bg-gradient-to-r from-[#0a1122] to-[#040810] border-white/5 text-white">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 w-full">
+        
+        <!-- Left: Filter menu toggle + Logo -->
+        <div class="flex items-center gap-2.5 min-w-0">
+          <button
+            id="btn-menu-sidebar"
+            class="flex items-center justify-center p-3 sm:px-4 sm:py-2.5 rounded-full transition-all font-bold text-xs cursor-pointer border bg-white/5 border-white/10 hover:bg-white/10 text-white shrink-0 group active:scale-95"
+            aria-label="Abrir Menu de Filtros"
+          >
+            <div class="flex flex-col gap-1 w-5 shrink-0">
+              <span class="h-0.5 w-full bg-white rounded-full group-hover:bg-blue-300 transition-colors"></span>
+              <span class="h-0.5 w-full bg-white rounded-full group-hover:bg-blue-300 transition-colors"></span>
+              <span class="h-0.5 w-full bg-white rounded-full group-hover:bg-blue-300 transition-colors"></span>
+            </div>
+            <span class="hidden sm:inline font-display tracking-wider uppercase text-[10px] ml-2">Filtros</span>
+          </button>
+
+          <!-- Logo -->
+          <div class="flex items-center gap-2 min-w-0">
+            <img src="logo.png" alt="Logo Alagoinhas Eventos" class="h-8 sm:h-10 w-auto object-contain shrink-0" />
+            
+            <div class="text-left truncate">
+              <h1 class="text-sm xs:text-base sm:text-2xl font-black tracking-tight font-display mb-0 leading-none text-white">
+                ALAGOINHAS <span class="text-blue-300">EVENTOS</span>
+              </h1>
+              <p class="hidden md:block text-[9px] text-blue-200/80 font-bold tracking-wider uppercase mt-1">
+                Agenda de Cultura, Esportes e Lazer • Bahia
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right actions -->
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+          
+          <!-- Profile Badge (dynamic) -->
+          <div id="header-user-container">
+            <!-- Rendered dynamically in script.js -->
+          </div>
+
+          <!-- Settings Trigger (Engrenagem) -->
+          <button
+            onclick="openSettingsModal()"
+            class="p-2.5 sm:p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full flex items-center justify-center cursor-pointer text-white transition-all hover:rotate-45 shrink-0"
+            title="Configurações"
+          >
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Post Event Trigger -->
+          <button
+            id="btn-open-add-event"
+            onclick="openAddEventModal()"
+            class="bg-white text-blue-950 hover:bg-blue-50 font-extrabold text-[10px] sm:text-xs px-3 py-2 sm:px-5 sm:py-3 rounded-full shadow-md flex items-center gap-1.5 sm:gap-2 transition-all active:scale-[0.98] cursor-pointer shrink-0"
+          >
+            <i data-lucide="plus" class="w-3.5 h-3.5 text-blue-900 stroke-[3]"></i>
+            <span>Anunciar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- --- FEATURED HERO SECTION --- -->
+    <section id="featured-event-section" class="py-4 sm:py-6 px-4 sm:px-6 relative overflow-hidden shrink-0">
+      <!-- Rendered dynamically in script.js -->
+    </section>
+
+    <!-- --- FILTER & SEARCH CONTROLS (STICKY SUB-HEADER) --- -->
+    <section class="py-3 px-4 sm:px-6 sticky top-[58px] sm:top-[73px] z-30 transition-colors duration-300 backdrop-blur-md border-b bg-[#070c19]/90 border-blue-950 dark:bg-[#070c19]/90 dark:border-blue-950 light:bg-[#f3f6fc]/90 light:border-blue-100">
+      <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-3 sm:gap-4">
+        
+        <!-- Search Box -->
+        <div class="relative w-full lg:max-w-md">
+          <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Pesquisar shows, esportes, teatros locais..."
+            class="w-full pl-10 pr-12 py-2.5 sm:py-3 border-2 rounded-full text-xs transition-all font-semibold shadow-sm focus:outline-none focus:ring-4 bg-[#0e162a] border-blue-950 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-blue-500/10"
+          />
+          <button 
+            id="clear-search-btn"
+            class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 font-bold text-xs transition-colors cursor-pointer hidden"
+          >
+            Limpar
+          </button>
+        </div>
+
+        <!-- Category Pill Filters -->
+        <div id="category-filters-pills" class="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto pb-1 lg:pb-0 no-scrollbar">
+          <!-- Rendered dynamically in script.js -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- --- ACTIVE FILTERS FEEDBACK BAR --- -->
+    <section id="active-filters-bar" class="py-2.5 px-4 sm:px-6 bg-blue-950/20 border-b border-white/5 transition-colors duration-300 hidden">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtros Ativos:</span>
+          <div id="active-filters-list" class="flex flex-wrap gap-1.5">
+            <!-- Tags rendered in script.js -->
+          </div>
+        </div>
+        <button onclick="clearAllFilters()" class="text-[10px] font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest cursor-pointer">
+          Limpar Tudo
+        </button>
+      </div>
+    </section>
+
+    <!-- --- MAIN CONTAINER (SIDEBAR & CARDS) --- -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex gap-6 relative">
+      
+      <!-- --- SIDEBAR FILTERS DRAWER/PANEL --- -->
+      <aside
+        id="app-sidebar"
+        class="fixed left-0 top-0 bottom-0 z-50 w-[85vw] sm:max-w-sm p-5 sm:p-6 shadow-2xl flex flex-col overflow-y-auto border-r transition-transform duration-300 -translate-x-full bg-[#0b1224] border-white/5 text-white"
+      >
+        <div class="flex items-center justify-between pb-4 border-b border-white/5 mb-6">
+          <div class="flex items-center gap-2">
+            <i data-lucide="filter" class="w-4.5 h-4.5 text-blue-400"></i>
+            <h3 class="font-display font-extrabold text-sm tracking-wider uppercase">Filtros e Agenda</h3>
+          </div>
+          <button id="sidebar-close-btn" class="p-1.5 hover:bg-white/10 rounded-full cursor-pointer transition-colors text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="space-y-6 flex-1">
+          
+          <!-- CALENDAR FILTER WIDGET -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-black uppercase tracking-wider text-blue-300">Filtrar por data</span>
+              <div class="flex items-center gap-1">
+                <button onclick="prevMonth()" class="p-1 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer">
+                  <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                </button>
+                <button onclick="nextMonth()" class="p-1 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer">
+                  <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Calendar Container Card -->
+            <div class="p-4 rounded-2xl bg-[#070c19] border border-white/5 shadow-inner">
+              <span id="calendar-month-title" class="text-xs font-bold text-slate-300 block mb-2.5 text-center">Janeiro 2026</span>
+              <div class="grid grid-cols-7 gap-1.5 text-center mb-1">
+                <span class="text-[9px] font-bold text-slate-500">D</span>
+                <span class="text-[9px] font-bold text-slate-500">S</span>
+                <span class="text-[9px] font-bold text-slate-500">T</span>
+                <span class="text-[9px] font-bold text-slate-500">Q</span>
+                <span class="text-[9px] font-bold text-slate-500">Q</span>
+                <span class="text-[9px] font-bold text-slate-500">S</span>
+                <span class="text-[9px] font-bold text-slate-500">S</span>
+              </div>
+              <div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center">
+                <!-- Days injected by script.js -->
+              </div>
+            </div>
+            <p class="text-[10px] text-slate-400 font-semibold leading-snug">Dias marcados com <span class="text-blue-400 font-bold">●</span> possuem eventos disponíveis.</p>
+          </div>
+
+          <!-- (REMOVIDO: Seção de Favoritos / "Minha Atividade") -->
+
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="pt-4 border-t border-white/5 text-center space-y-2">
+          <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Alagoinhas Eventos Portal v2.5</p>
+        </div>
+      </aside>
+
+      <!-- Sidebar Backdrop overlay -->
+      <div id="sidebar-overlay" class="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+
+      <!-- --- EVENTS MAIN CARDS GRID --- -->
+      <div class="flex-1 space-y-6">
+        <div id="events-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Dynamic cards list injected in script.js -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- --- ADD EVENT MODAL (FORM) --- -->
+    <div id="modal-add-event" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+      <div class="relative w-full max-w-md rounded-[20px] sm:rounded-[32px] border p-5 sm:p-6 shadow-2xl overflow-hidden text-left bg-[#0b1224] border-white/10 text-white animate-slide-in-up">
+        
+        <!-- Background glows -->
+        <div class="absolute top-0 right-0 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-4 border-b border-white/5 mb-4 shrink-0 relative">
+          <div class="flex items-center gap-2">
+            <div class="bg-blue-500/10 p-2 rounded-xl border border-blue-500/20 text-blue-400">
+              <i data-lucide="megaphone" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold tracking-tight font-display">Anunciar Evento</h3>
+              <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Cultura, Esportes, Cursos, Lazer</p>
+            </div>
+          </div>
+          <button onclick="closeAddEventModal()" class="p-1.5 hover:bg-white/10 rounded-full cursor-pointer transition-colors text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-4.5 h-4.5"></i>
+          </button>
+        </div>
+
+        <!-- Form Body -->
+        <form id="add-event-form" class="space-y-4 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar relative">
+          
+          <!-- Title -->
+          <div class="space-y-1">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do Evento *</label>
+            <input 
+              type="text" 
+              id="form-title" 
+              required
+              placeholder="Ex: Forró no Coreto da Praça"
+              class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+            />
+          </div>
+
+          <!-- Description -->
+          <div class="space-y-1">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Descrição do Evento *</label>
+            <textarea 
+              id="form-desc" 
+              required
+              rows="3"
+              placeholder="Descreva as atrações, o que trazer, classificação indicativa..."
+              class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+            ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Category -->
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Categoria *</label>
+              <select 
+                id="form-cat" 
+                required
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              >
+                <option value="shows">Shows & Cabaré</option>
+                <option value="sports">Esportes & Saúde</option>
+                <option value="culture">Teatro & Cultura</option>
+                <option value="local_fest">Eventos Locais</option>
+                <option value="lectures">Aulas & Palestras</option>
+              </select>
+            </div>
+
+            <!-- Date -->
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Data *</label>
+              <input 
+                type="date" 
+                id="form-date" 
+                required
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Time -->
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Horário *</label>
+              <input 
+                type="time" 
+                id="form-time" 
+                required
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              />
+            </div>
+
+            <!-- Image URL (optional) -->
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Link da Imagem</label>
+              <input 
+                type="url" 
+                id="form-img" 
+                placeholder="https://images.unsplash..."
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              />
+            </div>
+          </div>
+
+          <!-- Location -->
+          <div class="space-y-1">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Localização *</label>
+            <input 
+              type="text" 
+              id="form-location" 
+              required
+              placeholder="Ex: Praça Rui Barbosa, Centro"
+              class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+            />
+          </div>
+
+          <!-- Paid option checkbox -->
+          <label class="flex items-center gap-2.5 p-2 bg-[#070c19] border border-white/5 rounded-xl cursor-pointer">
+            <input 
+              type="checkbox" 
+              id="form-is-paid" 
+              class="w-4 h-4 text-blue-600 rounded bg-[#070c19] border-white/10"
+            />
+            <span class="text-[11px] font-bold text-slate-300">Este evento requer ingresso / entrada paga</span>
+          </label>
+
+          <!-- Hidden Paid options -->
+          <div id="form-paid-fields" class="grid grid-cols-2 gap-3 hidden animate-fade-in">
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Preço do Ingresso</label>
+              <input 
+                type="text" 
+                id="form-price" 
+                placeholder="Ex: R$ 20,00"
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">Link de Compra</label>
+              <input 
+                type="url" 
+                id="form-ticket-link" 
+                placeholder="Ex: https://sympla..."
+                class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+              />
+            </div>
+          </div>
+
+          <!-- Submit Buttons -->
+          <div class="pt-4 border-t border-white/5 flex gap-2 shrink-0">
+            <button 
+              type="button" 
+              onclick="closeAddEventModal()"
+              class="flex-1 py-2.5 border border-white/10 hover:bg-white/5 rounded-full text-xs font-extrabold transition-all cursor-pointer text-slate-300 active:scale-[0.98]"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit" 
+              class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-extrabold transition-all shadow-md active:scale-[0.98] cursor-pointer"
+            >
+              Publicar Agora
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    <!-- --- CONFIGURATIONS / SETTINGS MODAL --- -->
+    <div id="modal-settings" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+      <div class="relative w-full max-w-sm rounded-[20px] sm:rounded-[32px] border p-5 sm:p-6 shadow-2xl overflow-hidden text-left bg-[#0b1224] border-white/10 text-white animate-slide-in-up">
+        
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-white/5 mb-4 relative">
+          <div class="flex items-center gap-2">
+            <i data-lucide="settings" class="w-4.5 h-4.5 text-blue-400"></i>
+            <h3 class="text-sm font-extrabold font-display">Ajustes & Configurações</h3>
+          </div>
+          <button onclick="closeSettingsModal()" class="p-1.5 hover:bg-white/10 rounded-full cursor-pointer transition-colors text-slate-400">
+            <i data-lucide="x" class="w-4.5 h-4.5"></i>
+          </button>
+        </div>
+
+        <div class="space-y-4 relative">
+          
+          <!-- Theme toggle -->
+          <div class="space-y-1">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Tema Visual</span>
+            <button 
+              id="theme-toggle-btn"
+              class="w-full p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-between transition-colors cursor-pointer"
+            >
+              <span id="theme-toggle-text" class="text-xs font-bold text-slate-200">Modo Claro</span>
+              <i id="theme-toggle-icon" data-lucide="sun" class="w-4 h-4 text-blue-400"></i>
+            </button>
+          </div>
+
+          <!-- Reset / Purge Cache data -->
+          <div class="space-y-1">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Dados Locais</span>
+            <button 
+              onclick="clearAllLocalStorage()"
+              class="w-full p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-2xl flex items-center justify-between transition-colors cursor-pointer text-red-400"
+            >
+              <div class="text-left">
+                <span class="text-xs font-extrabold block">Limpar os dados da parada</span>
+                <span class="text-[9px] font-medium text-slate-500">Apaga preferências e criações</span>
+              </div>
+              <i data-lucide="refresh-cw" class="w-4 h-4 shrink-0"></i>
+            </button>
+          </div>
+
+          <!-- Close settings -->
+          <button 
+            onclick="closeSettingsModal()"
+            class="w-full py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-full text-xs font-extrabold transition-all cursor-pointer active:scale-95 block text-center"
+          >
+            Fechar Painel
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- --- LOGIN / PROFILE MODAL --- -->
+    <div id="modal-login" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+      <div class="relative w-full max-w-sm rounded-[20px] sm:rounded-[32px] border p-5 sm:p-6 shadow-2xl overflow-hidden text-left bg-[#0b1224] border-white/10 text-white animate-slide-in-up">
+        
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-white/5 mb-4 relative">
+          <div class="flex items-center gap-2">
+            <i data-lucide="user" class="w-4.5 h-4.5 text-blue-400"></i>
+            <h3 class="text-sm font-extrabold font-display">Identificação Regional</h3>
+          </div>
+          <button onclick="closeLoginModal()" class="p-1.5 hover:bg-white/10 rounded-full cursor-pointer transition-colors text-slate-400">
+            <i data-lucide="x" class="w-4.5 h-4.5"></i>
+          </button>
+        </div>
+
+        <!-- 1. NOT LOGGED VIEW -->
+        <div id="login-box-body" class="space-y-4 relative">
+          <p class="text-[11px] text-slate-300 font-semibold leading-relaxed">
+            COLOQUE QUALQUER NOME AI, ZÉ RUELA
+          </p>
+
+          <div class="space-y-1">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Seu Nome / Apelido *</label>
+            <input 
+              type="text" 
+              id="login-username-field"
+              placeholder="Ex: Você é gay"
+              class="w-full px-3 py-2 bg-[#070c19] border border-white/5 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-white"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Escolha seu Personagem</label>
+            <div id="login-avatars-list" class="grid grid-cols-5 gap-2">
+              <!-- Rendered inside script.js -->
+            </div>
+          </div>
+
+          <button 
+            type="button"
+            onclick="handleLoginSubmit()"
+            class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-extrabold transition-all cursor-pointer shadow-md active:scale-95 block text-center"
+          >
+            Confirmar e Entrar
+          </button>
+        </div>
+
+        <!-- 2. ALREADY LOGGED VIEW -->
+        <div id="logged-box-body" class="space-y-5 relative hidden text-center py-4">
+          <div class="inline-flex w-16 h-16 rounded-full border border-blue-500/25 bg-blue-500/10 items-center justify-center text-4xl mb-1 shadow-lg shadow-blue-500/5" id="logged-user-avatar">
+            🤠
+          </div>
+          <div class="space-y-1">
+            <h4 class="text-base font-black font-display text-white" id="logged-user-name">Carregando...</h4>
+            <span class="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-[9px] font-black uppercase tracking-wider" id="logged-user-title">Visitante</span>
+          </div>
+
+          <p class="text-[11px] text-slate-400 leading-relaxed font-semibold max-w-[250px] mx-auto">
+            Você está conectado. Todos os eventos criados por você poderão ser excluídos diretamente do seu feed!
+          </p>
+
+          <div class="flex gap-2 pt-2 border-t border-white/5 shrink-0">
+            <button 
+              onclick="closeLoginModal()"
+              class="flex-1 py-2 bg-white/5 border border-white/10 hover:bg-white/10 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95"
+            >
+              Fechar
+            </button>
+            <button 
+              onclick="handleLogout()"
+              class="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95"
+            >
+              Sair da Conta
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Load main script -->
+    <script src="./script.js"></script>
+  </body>
+</html>
