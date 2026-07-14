@@ -1,0 +1,6 @@
+{
+  "name": "Alagoinhas Eventos",
+  "description": "Portal completo de eventos para Alagoinhas, BA, com bento grid responsivo, suporte a ingressos pagos, envio de imagens e notificações em tempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
