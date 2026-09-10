@@ -1,5 +1,22 @@
 // Initial Preset Events Data
-const DEFAULT_EVENTS = [];
+const DEFAULT_EVENTS = [
+  {
+    id: "bailao-black-2026",
+    title: "BAILÃO DO BLACK - 2026 | Todos de preto!",
+    description: "Bailão do Black 2026 promete uma noite em tom all black para agitar Alagoinhas. Muito funk, trap e pagodão na Arena 101. Lotes disponíveis: Individual R$ 26,00 | Casadinha R$ 21,00 (taxa inclusa).",
+    category: "shows",
+    date: "2026-09-05",
+    time: "21:00",
+    location: "Arena 101, BR-101 - Alagoinhas/Bahia",
+    imageUrl: "Imagens/imagem1.png",
+    organizer: "Sympla",
+    isFeatured: true,
+    createdTimestamp: Date.now(),
+    isPaid: true,
+    ticketPrice: "A partir de R$ 21,00",
+    ticketLink: "https://www.sympla.com.br/evento/bailao-do-black-2026-todos-de-preto/3525766?referrer=www.grupsapp.com&referrer=www.grupsapp.com"
+  }
+];
 
 // Presets Avatars
 const AVATAR_PRESETS = [
@@ -25,14 +42,14 @@ let favorites = [];
 let currentUser = null;
 let theme = "dark";
 let sidebarOpen = false;
-let selectedDate = null; // YYYY-MM-DD
+let selectedDate = null;
 let selectedCategory = "all";
 let searchQuery = "";
 let showOnlyFavorites = false;
 
 // Calendar State
 let calendarYear = 2026;
-let calendarMonth = 6; // July (0-indexed)
+let calendarMonth = 8; // Setembro (0-indexed)
 
 // Audio Chime Generator
 function playChime() {
@@ -44,8 +61,8 @@ function playChime() {
     const gain = ctx.createGain();
     
     osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12);
     
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
@@ -97,19 +114,22 @@ function initLoader() {
 
 // Load Persistent Data from LocalStorage
 function loadData() {
-  // Theme
   theme = localStorage.getItem("alagoinhas_theme") || "dark";
   
-  // Events
   const savedEvents = localStorage.getItem("alagoinhas_events");
   if (savedEvents) {
-    events = JSON.parse(savedEvents);
+    const parsedEvents = JSON.parse(savedEvents);
+    if (parsedEvents && parsedEvents.length > 0) {
+      events = parsedEvents;
+    } else {
+      events = [...DEFAULT_EVENTS];
+      localStorage.setItem("alagoinhas_events", JSON.stringify(events));
+    }
   } else {
     events = [...DEFAULT_EVENTS];
     localStorage.setItem("alagoinhas_events", JSON.stringify(events));
   }
   
-  // Favorites
   const savedFavs = localStorage.getItem("alagoinhas_favorites");
   if (savedFavs) {
     favorites = JSON.parse(savedFavs);
@@ -117,14 +137,12 @@ function loadData() {
     favorites = [];
   }
   
-  // User
   const savedUser = localStorage.getItem("alagoinhas_user");
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
   }
 }
 
-// Apply theme classes to document body
 function applyTheme() {
   const body = document.body;
   const themeToggleIcon = document.getElementById("theme-toggle-icon");
@@ -147,7 +165,6 @@ function applyTheme() {
   }
 }
 
-// Render dynamic elements in header depending on user status
 function renderHeaderUser() {
   const userContainer = document.getElementById("header-user-container");
   if (!userContainer) return;
@@ -175,7 +192,6 @@ function renderHeaderUser() {
   }
 }
 
-// Render the Sidebar Calendar Grid
 function renderCalendar() {
   const monthTitle = document.getElementById("calendar-month-title");
   const daysGrid = document.getElementById("calendar-days-grid");
@@ -190,12 +206,10 @@ function renderCalendar() {
   
   daysGrid.innerHTML = "";
   
-  // Grid construction variables
   const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
   const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
   const prevMonthTotalDays = new Date(calendarYear, calendarMonth, 0).getDate();
   
-  // 1. Render overlap days from previous month
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const dayNum = prevMonthTotalDays - i;
     const btn = document.createElement("button");
@@ -205,17 +219,14 @@ function renderCalendar() {
     daysGrid.appendChild(btn);
   }
   
-  // 2. Render actual current month days
   for (let d = 1; d <= totalDays; d++) {
     const dayStr = String(d).padStart(2, '0');
     const monthStr = String(calendarMonth + 1).padStart(2, '0');
     const fullDateStr = `${calendarYear}-${monthStr}-${dayStr}`;
     
-    // Check if this day has any active events
     const hasEvents = events.some(e => e.date === fullDateStr);
     const isSelected = selectedDate === fullDateStr;
     
-    // Is today
     const today = new Date();
     const isToday = today.getDate() === d && today.getMonth() === calendarMonth && today.getFullYear() === calendarYear;
     
@@ -233,10 +244,9 @@ function renderCalendar() {
     btn.onclick = () => selectCalendarDate(fullDateStr);
     btn.textContent = d;
     
-    // Add blue event indicators
     if (hasEvents && !isSelected) {
       const dot = document.createElement("span");
-      dot.className = "calendar-day-dot bg-blue-400";
+      dot.className = "absolute bottom-1 w-1 h-1 bg-blue-400 rounded-full";
       btn.appendChild(dot);
     }
     
@@ -244,10 +254,9 @@ function renderCalendar() {
   }
 }
 
-// Select calendar day for filtering events
 function selectCalendarDate(dateStr) {
   if (selectedDate === dateStr) {
-    selectedDate = null; // Clear filter
+    selectedDate = null;
   } else {
     selectedDate = dateStr;
   }
@@ -256,7 +265,6 @@ function selectCalendarDate(dateStr) {
   updateFiltersDisplay();
 }
 
-// Go to next month in Calendar view
 function nextMonth() {
   calendarMonth++;
   if (calendarMonth > 11) {
@@ -266,7 +274,6 @@ function nextMonth() {
   renderCalendar();
 }
 
-// Go to previous month in Calendar view
 function prevMonth() {
   calendarMonth--;
   if (calendarMonth < 0) {
@@ -276,34 +283,25 @@ function prevMonth() {
   renderCalendar();
 }
 
-// Search, Filter, and render events list
 function renderEvents() {
   const eventsContainer = document.getElementById("events-grid-container");
   const featuredSection = document.getElementById("featured-event-section");
   if (!eventsContainer) return;
   
-  // Apply all filters: Search Query, Category, Selected Date, Favorite Status
   const filtered = events.filter(event => {
-    // Search matching
     const searchMatch = searchQuery === "" || 
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.organizer.toLowerCase().includes(searchQuery.toLowerCase());
       
-    // Category matching
     const categoryMatch = selectedCategory === "all" || event.category === selectedCategory;
-    
-    // Date matching
     const dateMatch = !selectedDate || event.date === selectedDate;
-    
-    // Favorite status matching
     const favMatch = !showOnlyFavorites || favorites.includes(event.id);
     
     return searchMatch && categoryMatch && dateMatch && favMatch;
   });
   
-  // Render Featured event banner if no active filters
   const isFiltering = selectedDate || searchQuery !== "" || selectedCategory !== "all" || showOnlyFavorites;
   const featuredEvent = events.find(e => e.isFeatured);
   
@@ -369,7 +367,6 @@ function renderEvents() {
     featuredSection.classList.add("hidden");
   }
   
-  // Render Main Grid List
   eventsContainer.innerHTML = "";
   
   if (filtered.length === 0) {
@@ -394,8 +391,6 @@ function renderEvents() {
   filtered.forEach(event => {
     const isFav = favorites.includes(event.id);
     const categoryInfo = CATEGORY_MAP[event.category] || CATEGORY_MAP.all;
-    
-    // Check ownership to allow deletion
     const isOwner = currentUser && event.organizer === currentUser.name;
     
     const card = document.createElement("article");
@@ -406,13 +401,13 @@ function renderEvents() {
         : event.isPaid ? "bg-white border-blue-400 shadow-md" : "bg-white border-slate-200/80"}`;
         
     card.innerHTML = `
-      <!-- Event image & category -->
       <div class="relative h-40 sm:h-48 w-full overflow-hidden shrink-0 border-b border-white/5">
         <img
           src="${event.imageUrl}"
           alt="${event.title}"
           class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
           loading="lazy"
+          onerror="this.src='https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&auto=format&fit=crop&q=60'"
         />
         <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent"></div>
         
@@ -420,7 +415,6 @@ function renderEvents() {
           ${categoryInfo.label}
         </span>
         
-        <!-- Action buttons inside image header -->
         <div class="absolute top-4 right-4 flex items-center gap-2">
           ${isOwner ? `
             <button onclick="deleteEvent('${event.id}')" class="p-2 bg-red-600/90 hover:bg-red-700 text-white rounded-full shadow-lg cursor-pointer backdrop-blur-sm active:scale-90 transition-all" title="Excluir Evento">
@@ -434,7 +428,6 @@ function renderEvents() {
         </div>
       </div>
 
-      <!-- Card Body -->
       <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between">
         <div class="space-y-2">
           <h3 class="text-base font-extrabold tracking-tight leading-snug font-display line-clamp-2 hover:text-blue-400 transition-colors
@@ -451,7 +444,6 @@ function renderEvents() {
         </div>
 
         <div class="mt-4 pt-4 border-t space-y-3 shrink-0 ${theme === 'dark' ? 'border-white/5' : 'border-slate-100'}">
-          <!-- Event core stats -->
           <div class="grid grid-cols-2 gap-2 text-[11px] font-bold">
             <span class="flex items-center gap-1.5 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}">
               <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-400"></i>
@@ -468,13 +460,11 @@ function renderEvents() {
             <span class="truncate">${event.location}</span>
           </span>
 
-          <!-- Creator/Organizer Badge -->
           <div class="flex items-center justify-between gap-2 pt-1">
             <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate max-w-[120px]" title="Organizador">
               By: ${event.organizer}
             </span>
             
-            <!-- Price and Link CTA -->
             <div>
               ${event.isPaid ? `
                 <a href="${event.ticketLink || '#'}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-full text-[10px] font-extrabold shadow flex items-center gap-1 cursor-pointer transition-all">
@@ -500,7 +490,6 @@ function renderEvents() {
   }
 }
 
-// Favorite Toggle handling
 function toggleFavorite(eventId) {
   const idx = favorites.indexOf(eventId);
   if (idx > -1) {
@@ -512,7 +501,6 @@ function toggleFavorite(eventId) {
   renderEvents();
 }
 
-// Delete Event (Owner only)
 function deleteEvent(eventId) {
   if (confirm("Tem certeza que deseja excluir seu evento anunciado?")) {
     events = events.filter(e => e.id !== eventId);
@@ -523,15 +511,12 @@ function deleteEvent(eventId) {
   }
 }
 
-// Scrolling down helper
 function scrollToEvent(elementId) {
   const el = document.getElementById(elementId);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-// Setup Event listeners for buttons
 function setupEventListeners() {
-  // Theme Toggle Header
   const themeBtn = document.getElementById("theme-toggle-btn");
   if (themeBtn) {
     themeBtn.onclick = () => {
@@ -543,7 +528,6 @@ function setupEventListeners() {
     };
   }
   
-  // Sidebar Toggler
   const sidebarBtn = document.getElementById("btn-menu-sidebar");
   const sidebarEl = document.getElementById("app-sidebar");
   const sidebarOverlay = document.getElementById("sidebar-overlay");
@@ -568,12 +552,10 @@ function setupEventListeners() {
     sidebarBtn.onclick = toggleSidebar;
     sidebarOverlay.onclick = toggleSidebar;
     
-    // Close button in sidebar
     const sidebarClose = document.getElementById("sidebar-close-btn");
     if (sidebarClose) sidebarClose.onclick = toggleSidebar;
   }
   
-  // Search Box Inputs
   const searchInput = document.getElementById("search-input");
   const clearSearchBtn = document.getElementById("clear-search-btn");
   
@@ -602,7 +584,6 @@ function setupEventListeners() {
     };
   }
   
-  // Category Pill Filter rendering & interaction
   const categoryContainer = document.getElementById("category-filters-pills");
   if (categoryContainer) {
     categoryContainer.innerHTML = "";
@@ -618,31 +599,11 @@ function setupEventListeners() {
     updateCategoryPillState();
   }
   
-  // Modal forms setup
   const eventFormEl = document.getElementById("add-event-form");
   if (eventFormEl) {
     eventFormEl.onsubmit = handleAddEventSubmit;
   }
   
-  // Preset Avatar selecting in Login modal
-  const avatarList = document.getElementById("login-avatars-list");
-  if (avatarList) {
-    avatarList.innerHTML = "";
-    AVATAR_PRESETS.forEach((preset, idx) => {
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = "p-3 border rounded-2xl flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 cursor-pointer border-white/10 active:scale-95 transition-all";
-      card.id = `avatar-choice-${idx}`;
-      card.onclick = () => selectAvatarChoice(idx);
-      card.innerHTML = `
-        <span class="text-3xl">${preset.icon}</span>
-        <span class="text-[9px] font-bold text-slate-300 truncate max-w-[70px]">${preset.name}</span>
-      `;
-      avatarList.appendChild(card);
-    });
-  }
-  
-  // Paid option toggling in the add event form
   const isPaidCheckbox = document.getElementById("form-is-paid");
   const paidFields = document.getElementById("form-paid-fields");
   if (isPaidCheckbox && paidFields) {
@@ -656,7 +617,6 @@ function setupEventListeners() {
   }
 }
 
-// Toggle pill color states
 function selectCategoryFilter(catKey) {
   selectedCategory = catKey;
   updateCategoryPillState();
@@ -682,14 +642,12 @@ function updateCategoryPillState() {
   });
 }
 
-// Sidebars & checkbox lists categories setup
 function toggleFavoriteFilter(checkbox) {
   showOnlyFavorites = checkbox.checked;
   renderEvents();
   updateFiltersDisplay();
 }
 
-// Active filters display counters & clear buttons
 function updateFiltersDisplay() {
   const container = document.getElementById("active-filters-bar");
   const pillsList = document.getElementById("active-filters-list");
@@ -706,7 +664,6 @@ function updateFiltersDisplay() {
   container.classList.remove("hidden");
   pillsList.innerHTML = "";
   
-  // Date pill
   if (selectedDate) {
     const formatted = selectedDate.split("-").reverse().join("/");
     pillsList.appendChild(createFilterBadge(`Data: ${formatted}`, () => {
@@ -717,7 +674,6 @@ function updateFiltersDisplay() {
     }));
   }
   
-  // Category pill
   if (selectedCategory !== "all") {
     const label = CATEGORY_MAP[selectedCategory]?.label || selectedCategory;
     pillsList.appendChild(createFilterBadge(`Categoria: ${label}`, () => {
@@ -728,7 +684,6 @@ function updateFiltersDisplay() {
     }));
   }
   
-  // Search text pill
   if (searchQuery !== "") {
     pillsList.appendChild(createFilterBadge(`Busca: "${searchQuery}"`, () => {
       searchQuery = "";
@@ -741,7 +696,6 @@ function updateFiltersDisplay() {
     }));
   }
   
-  // Only Favorites
   if (showOnlyFavorites) {
     pillsList.appendChild(createFilterBadge("Apenas Favoritos", () => {
       showOnlyFavorites = false;
@@ -763,14 +717,12 @@ function createFilterBadge(text, onClear) {
   return badge;
 }
 
-// Clear all active filters helper
 function clearAllFilters() {
   selectedDate = null;
   selectedCategory = "all";
   searchQuery = "";
   showOnlyFavorites = false;
   
-  // Reset fields
   const sInput = document.getElementById("search-input");
   if (sInput) sInput.value = "";
   
@@ -786,7 +738,6 @@ function clearAllFilters() {
   updateFiltersDisplay();
 }
 
-// Create Event submitting handler
 function handleAddEventSubmit(e) {
   e.preventDefault();
   
@@ -801,7 +752,6 @@ function handleAddEventSubmit(e) {
   const ticketPrice = document.getElementById("form-price").value;
   const ticketLink = document.getElementById("form-ticket-link").value;
   
-  // Check login required to post events
   if (!currentUser) {
     alert("Por favor, faça login ou identifique-se clicando em 'Entrar' no topo para poder anunciar eventos!");
     closeAddEventModal();
@@ -832,22 +782,18 @@ function handleAddEventSubmit(e) {
   events.push(newEvent);
   localStorage.setItem("alagoinhas_events", JSON.stringify(events));
   
-  // Success flow
   playChime();
   closeAddEventModal();
   renderEvents();
   renderCalendar();
   updateFiltersDisplay();
   
-  // Dynamic Alert box toast
   showToastNotification(`Seu evento "${title}" foi anunciado com sucesso no portal!`);
   
-  // Reset form
   document.getElementById("add-event-form").reset();
   document.getElementById("form-paid-fields").classList.add("hidden");
 }
 
-// Custom Toast notifications
 function showToastNotification(msg) {
   const toast = document.createElement("div");
   toast.className = "fixed bottom-5 right-5 z-50 p-4 rounded-2xl bg-slate-900 border border-emerald-500/30 text-white shadow-2xl animate-fade-in max-w-sm flex items-center gap-3";
@@ -869,7 +815,6 @@ function showToastNotification(msg) {
   }, 4500);
 }
 
-// Preset User / Login interactions
 let selectedAvatarIdx = 0;
 function selectAvatarChoice(idx) {
   selectedAvatarIdx = idx;
@@ -913,15 +858,15 @@ function handleLogout() {
   }
 }
 
-// Modal control functions
 function openAddEventModal() {
   if (!currentUser) {
-    alert("Identifique-se primeiro para poder anunciar eventos, por enquanto tá sem backend, então tem esse cadastro fudido ai!");
+    alert("Identifique-se primeiro para poder anunciar eventos!");
     openLoginModal();
     return;
   }
   document.getElementById("modal-add-event").classList.remove("hidden");
 }
+
 function closeAddEventModal() {
   document.getElementById("modal-add-event").classList.add("hidden");
 }
@@ -929,6 +874,7 @@ function closeAddEventModal() {
 function openSettingsModal() {
   document.getElementById("modal-settings").classList.remove("hidden");
 }
+
 function closeSettingsModal() {
   document.getElementById("modal-settings").classList.add("hidden");
 }
@@ -944,7 +890,14 @@ function openLoginModal() {
     loginBody.classList.add("hidden");
     loggedBody.classList.remove("hidden");
     
-    document.getElementById("logged-user-avatar").innerHTML = AVATAR_PRESETS[currentUser.avatarIdx]?.icon;
+    const avatarContainer = document.getElementById("logged-user-avatar-container");
+    const avatarEmoji = document.getElementById("logged-user-avatar-emoji");
+    
+    if (avatarContainer && avatarEmoji) {
+      avatarContainer.className = `w-20 h-20 rounded-full border-2 flex items-center justify-center text-3xl shadow-xl overflow-hidden ${AVATAR_PRESETS[currentUser.avatarIdx]?.class}`;
+      avatarEmoji.textContent = AVATAR_PRESETS[currentUser.avatarIdx]?.icon;
+    }
+    
     document.getElementById("logged-user-name").textContent = currentUser.name;
     document.getElementById("logged-user-title").textContent = AVATAR_PRESETS[currentUser.avatarIdx]?.name;
   } else {
@@ -953,11 +906,11 @@ function openLoginModal() {
     selectAvatarChoice(0);
   }
 }
+
 function closeLoginModal() {
   document.getElementById("modal-login").classList.add("hidden");
 }
 
-// Reset Local Data
 function clearAllLocalStorage() {
   if (confirm("Isso apagará todas as suas preferências, eventos cadastrados e curtidas locais. Deseja prosseguir?")) {
     localStorage.clear();
