@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Eventos Alagoinhas - A Capital do Forró e da Cultura</title>
+    <title>Alagoinhas Eventos - A Capital do Forró e da Cultura</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +34,8 @@
               'float': 'float 6s ease-in-out infinite',
               'float-delayed': 'float 6s ease-in-out 3s infinite',
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 8s linear infinite',
+              'bounce-slow': 'bounce 3s infinite',
               'shimmer': 'shimmer 2s linear infinite',
               'glow': 'glow 2s ease-in-out infinite alternate',
             },
@@ -59,10 +61,11 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Google Identity Services (Para Login Real) -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-
+    <!-- Three.js para elementos 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
     <style>
+      /* Custom Styles & 3D Effects */
       body {
         overflow-x: hidden;
         background: #050811;
@@ -94,7 +97,7 @@
       }
       
       .card-3d:hover {
-        transform: rotateY(5deg) rotateX(5deg) translateZ(10px);
+        transform: rotateY(10deg) rotateX(5deg) translateZ(20px);
       }
       
       .floating-shape {
@@ -116,7 +119,6 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        transition: opacity 0.5s ease;
       }
       
       .loader-cube {
@@ -155,6 +157,7 @@
         border-radius: 2px;
         margin-top: 40px;
         overflow: hidden;
+        position: relative;
       }
       
       .loader-progress-bar {
@@ -182,6 +185,7 @@
         100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
       }
       
+      /* 3D Background Elements */
       .bg-3d-container {
         position: fixed;
         inset: 0;
@@ -208,14 +212,15 @@
         animation-delay: -10s;
       }
       
+      /* Event Card Hover Effects */
       .event-card {
         transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         transform-style: preserve-3d;
       }
       
       .event-card:hover {
-        transform: translateY(-10px) rotateX(2deg) rotateY(2deg);
-        box-shadow: 0 30px 60px rgba(0, 102, 204, 0.2);
+        transform: translateY(-10px) rotateX(5deg) rotateY(5deg);
+        box-shadow: 0 30px 60px rgba(0, 102, 204, 0.3);
       }
       
       .event-card::before {
@@ -226,15 +231,15 @@
         opacity: 0;
         transition: opacity 0.5s;
         border-radius: inherit;
-        pointer-events: none;
       }
       
       .event-card:hover::before {
         opacity: 1;
       }
       
+      /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
+        width: 10px;
       }
       
       ::-webkit-scrollbar-track {
@@ -243,9 +248,10 @@
       
       ::-webkit-scrollbar-thumb {
         background: linear-gradient(180deg, #0066CC, #FFD700);
-        border-radius: 4px;
+        border-radius: 5px;
       }
       
+      /* Button Glow Effect */
       .btn-glow {
         position: relative;
         overflow: hidden;
@@ -265,6 +271,7 @@
         transform: translateX(100%);
       }
       
+      /* Text Reveal Animation */
       .reveal-text {
         opacity: 0;
         transform: translateY(30px);
@@ -272,53 +279,59 @@
       }
       
       @keyframes revealText {
-        to { opacity: 1; transform: translateY(0); }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
       
+      /* City Silhouette */
       .city-silhouette {
         position: absolute;
         bottom: 0;
         left: 0;
         right: 0;
-        height: 250px;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%230066CC' fill-opacity='0.15' d='M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+        height: 200px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%230066CC' fill-opacity='0.1' d='M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
         background-size: cover;
         background-position: center bottom;
-        pointer-events: none;
-      }
-
-      .scrollbar-hide::-webkit-scrollbar {
-        display: none;
-      }
-      .scrollbar-hide {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
       }
     </style>
-</head>
-<body class="antialiased text-white font-sans">
+  </head>
+  <body class="antialiased text-white">
 
-    <!-- LOADER -->
+    <!-- LOADER PROFESSIONAL -->
     <div id="app-loader" class="loader-container">
+      <!-- Particles -->
       <div id="particles-container"></div>
+      
+      <!-- 3D Cube Loader -->
       <div class="loader-cube">
-        <div class="loader-face"></div><div class="loader-face"></div><div class="loader-face"></div>
-        <div class="loader-face"></div><div class="loader-face"></div><div class="loader-face"></div>
+        <div class="loader-face"></div>
+        <div class="loader-face"></div>
+        <div class="loader-face"></div>
+        <div class="loader-face"></div>
+        <div class="loader-face"></div>
+        <div class="loader-face"></div>
       </div>
+      
+      <!-- Logo & Text -->
       <div class="mt-12 text-center z-10">
         <h1 class="text-4xl md:text-6xl font-black font-display mb-2">
-          <span class="gradient-text">EVENTOS</span>
+          <span class="gradient-text">ALAGOINHAS</span>
         </h1>
-        <p class="text-blue-400 text-lg md:text-xl font-bold tracking-widest uppercase">Alagoinhas</p>
+        <p class="text-blue-400 text-lg md:text-xl font-bold tracking-widest uppercase">Eventos</p>
         <p class="text-slate-400 text-sm mt-4">Carregando a melhor agenda cultural da Bahia</p>
       </div>
+      
+      <!-- Progress Bar -->
       <div class="loader-progress">
         <div id="loader-progress-bar" class="loader-progress-bar" style="width: 0%"></div>
       </div>
       <p id="loader-text" class="text-slate-500 text-xs mt-2 font-mono">0%</p>
     </div>
 
-    <!-- 3D BACKGROUND -->
+    <!-- 3D BACKGROUND ELEMENTS -->
     <div class="bg-3d-container">
       <div class="sphere-3d w-96 h-96 top-20 -left-20"></div>
       <div class="sphere-3d w-80 h-80 top-40 right-20"></div>
@@ -329,22 +342,24 @@
     <header class="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-white/10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-20">
-          <div class="flex items-center gap-3 group cursor-pointer" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+          <!-- Logo -->
+          <div class="flex items-center gap-3 group cursor-pointer">
             <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 via-yellow-500 to-green-600 flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-500 shadow-lg shadow-blue-500/30">
-              <i data-lucide="calendar-days" class="w-6 h-6 text-white"></i>
+              <i data-lucide="calendar" class="w-6 h-6 text-white"></i>
             </div>
             <div>
-              <h1 class="text-2xl font-black font-display gradient-text leading-none">EVENTOS</h1>
-              <p class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Alagoinhas - BA</p>
+              <h1 class="text-2xl font-black font-display gradient-text">ALAGOINHAS</h1>
+              <p class="text-[10px] text-slate-400 uppercase tracking-widest">Eventos & Cultura</p>
             </div>
           </div>
 
+          <!-- Navigation -->
           <nav class="hidden md:flex items-center gap-8">
-            <a href="#" class="text-sm font-semibold text-white hover:text-blue-400 transition-colors relative group">
+            <a href="#" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
               Início
               <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-yellow-500 group-hover:w-full transition-all duration-300"></span>
             </a>
-            <a href="#eventos" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
+            <a href="#" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
               Eventos
               <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-yellow-500 group-hover:w-full transition-all duration-300"></span>
             </a>
@@ -354,23 +369,13 @@
             </a>
           </nav>
 
+          <!-- Actions -->
           <div class="flex items-center gap-3">
             <button onclick="openSettingsModal()" class="p-2.5 rounded-xl glass-effect hover:bg-white/10 transition-all duration-300 group">
               <i data-lucide="settings" class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:rotate-90 transition-all duration-500"></i>
             </button>
             
-            <div id="header-user-container" class="flex items-center gap-3">
-              <!-- BOTÃO DE LOGIN GOOGLE (Mock para teste imediato + Real comentado) -->
-              
-              <!-- Para produção, descomente as linhas abaixo e adicione seu CLIENT_ID do Google Cloud Console -->
-              <!-- <div id="g_id_onload" data-client_id="SEU_CLIENT_ID.apps.googleusercontent.com" data-callback="handleRealGoogleLogin"></div> -->
-              <!-- <div class="g_id_signin" data-type="standard" data-size="medium" data-theme="outline" data-text="signin_with" data-shape="rectangular" data-logo_alignment="left"></div> -->
-              
-              <button id="mock-login-btn" onclick="mockGoogleLogin()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 font-semibold hover:bg-slate-200 transition-all text-sm">
-                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Entrar
-              </button>
-            </div>
+            <div id="header-user-container"></div>
             
             <button onclick="openAddEventModal()" class="btn-glow hidden sm:flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all duration-300 hover:scale-105">
               <i data-lucide="plus" class="w-5 h-5"></i>
@@ -396,10 +401,11 @@
           </h2>
           
           <p class="text-xl text-slate-400 max-w-2xl mx-auto mb-10 reveal-text" style="animation-delay: 0.4s">
-            Shows, Micareta, São João, cultura e muito mais na terra do forró e da alegria. 
+            Shows, festas, cultura e muito mais na terra do forró e da alegria. 
             Sua agenda completa de entretenimento!
           </p>
 
+          <!-- Search Bar -->
           <div class="max-w-2xl mx-auto relative group">
             <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-yellow-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition-opacity duration-500"></div>
             <div class="relative flex items-center glass-effect rounded-2xl p-2">
@@ -409,38 +415,39 @@
                 id="search-input"
                 placeholder="Buscar eventos, shows, festas..."
                 class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-white placeholder-slate-500"
-                oninput="filterEvents()"
               />
-              <button class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all duration-300" onclick="filterEvents()">
+              <button class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all duration-300">
                 Buscar
               </button>
             </div>
           </div>
         </div>
+
+        <!-- Featured Event Banner -->
+        <div id="featured-event-section" class="relative z-10 mb-16"></div>
       </div>
+      
+      <!-- City Silhouette -->
       <div class="city-silhouette"></div>
     </section>
 
     <!-- CATEGORY FILTERS -->
-    <section class="sticky top-20 z-40 py-4 glass-effect border-y border-white/5 backdrop-blur-xl">
+    <section class="sticky top-20 z-40 py-4 glass-effect border-y border-white/5">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide" id="category-filters-pills">
-          <button onclick="setCategory('todos')" class="category-pill active px-6 py-2 rounded-full bg-blue-600 text-white font-semibold text-sm whitespace-nowrap transition-all hover:scale-105">Todos</button>
-          <button onclick="setCategory('micareta')" class="category-pill px-6 py-2 rounded-full glass-effect text-slate-300 font-semibold text-sm whitespace-nowrap transition-all hover:bg-white/10 hover:text-white">Micareta</button>
-          <button onclick="setCategory('sao-joao')" class="category-pill px-6 py-2 rounded-full glass-effect text-slate-300 font-semibold text-sm whitespace-nowrap transition-all hover:bg-white/10 hover:text-white">São João</button>
-          <button onclick="setCategory('shows')" class="category-pill px-6 py-2 rounded-full glass-effect text-slate-300 font-semibold text-sm whitespace-nowrap transition-all hover:bg-white/10 hover:text-white">Shows & Festas</button>
-          <button onclick="setCategory('cultura')" class="category-pill px-6 py-2 rounded-full glass-effect text-slate-300 font-semibold text-sm whitespace-nowrap transition-all hover:bg-white/10 hover:text-white">Cultura</button>
-          <button onclick="setCategory('esportes')" class="category-pill px-6 py-2 rounded-full glass-effect text-slate-300 font-semibold text-sm whitespace-nowrap transition-all hover:bg-white/10 hover:text-white">Esportes</button>
+          <!-- Categories injected by JS -->
         </div>
       </div>
     </section>
 
     <!-- MAIN CONTENT -->
-    <main id="eventos" class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <!-- Events Grid -->
       <div id="events-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- Eventos injetados via JS -->
+        <!-- Events injected by JS -->
       </div>
 
+      <!-- Empty State -->
       <div id="empty-state" class="hidden text-center py-20">
         <div class="w-24 h-24 mx-auto mb-6 rounded-full glass-effect flex items-center justify-center">
           <i data-lucide="calendar-x" class="w-12 h-12 text-slate-400"></i>
@@ -453,7 +460,8 @@
       </div>
     </main>
 
-    <!-- MODAL: Add Event -->
+    <!-- MODALS -->
+    <!-- Add Event Modal -->
     <div id="modal-add-event" class="fixed inset-0 z-50 hidden">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeAddEventModal()"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
@@ -461,59 +469,58 @@
           <div class="flex items-center justify-between mb-8">
             <div>
               <h3 class="text-2xl font-bold font-display">Anunciar Evento</h3>
-              <p class="text-slate-400 text-sm">Preencha os dados do seu evento em Alagoinhas</p>
+              <p class="text-slate-400 text-sm">Preencha os dados do seu evento</p>
             </div>
             <button onclick="closeAddEventModal()" class="p-2 rounded-xl hover:bg-white/10 transition-colors">
               <i data-lucide="x" class="w-6 h-6"></i>
             </button>
           </div>
           
-          <form id="add-event-form" class="space-y-6" onsubmit="handleAddEvent(event)">
+          <form id="add-event-form" class="space-y-6">
             <div class="grid md:grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-300">Nome do Evento *</label>
-                <input type="text" id="form-title" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="Ex: Forró no Coreto">
+                <input type="text" id="form-title" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Ex: Forró no Coreto">
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-300">Categoria *</label>
-                <select id="form-cat" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white">
-                  <option value="shows" class="bg-slate-900">Shows & Festas</option>
-                  <option value="micareta" class="bg-slate-900">Micareta</option>
-                  <option value="sao-joao" class="bg-slate-900">São João</option>
-                  <option value="cultura" class="bg-slate-900">Cultura</option>
-                  <option value="esportes" class="bg-slate-900">Esportes</option>
+                <select id="form-cat" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
+                  <option value="shows">Shows & Festas</option>
+                  <option value="sports">Esportes</option>
+                  <option value="culture">Cultura</option>
+                  <option value="local_fest">Eventos Locais</option>
                 </select>
               </div>
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-semibold text-slate-300">Descrição *</label>
-              <textarea id="form-desc" required rows="3" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="Descreva o evento..."></textarea>
+              <textarea id="form-desc" required rows="3" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Descreva o evento..."></textarea>
             </div>
 
             <div class="grid md:grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-300">Data *</label>
-                <input type="date" id="form-date" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white">
+                <input type="date" id="form-date" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-300">Horário *</label>
-                <input type="time" id="form-time" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white">
+                <input type="time" id="form-time" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
               </div>
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-semibold text-slate-300">Localização *</label>
-              <input type="text" id="form-location" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="Ex: Parque de Exposições de Alagoinhas">
+              <input type="text" id="form-location" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Ex: Praça Rui Barbosa">
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-semibold text-slate-300">Imagem (URL)</label>
-              <input type="url" id="form-img" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="https://...">
+              <input type="url" id="form-img" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="https://...">
             </div>
 
             <div class="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
-              <input type="checkbox" id="form-is-paid" class="w-5 h-5 rounded border-white/10 bg-white/10" onchange="togglePaidFields()">
+              <input type="checkbox" id="form-is-paid" class="w-5 h-5 rounded border-white/10 bg-white/10">
               <label for="form-is-paid" class="text-sm font-semibold cursor-pointer">Evento pago</label>
             </div>
 
@@ -521,11 +528,11 @@
               <div class="grid md:grid-cols-2 gap-6">
                 <div class="space-y-2">
                   <label class="text-sm font-semibold text-slate-300">Preço</label>
-                  <input type="text" id="form-price" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="R$ 0,00">
+                  <input type="text" id="form-price" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="R$ 0,00">
                 </div>
                 <div class="space-y-2">
-                  <label class="text-sm font-semibold text-slate-300">Link de Ingressos</label>
-                  <input type="url" id="form-ticket-link" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors text-white" placeholder="https://sympla...">
+                  <label class="text-sm font-semibold text-slate-300">Link de Compra</label>
+                  <input type="url" id="form-ticket-link" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="https://sympla...">
                 </div>
               </div>
             </div>
@@ -539,7 +546,7 @@
       </div>
     </div>
 
-    <!-- MODAL: Settings -->
+    <!-- Settings Modal -->
     <div id="modal-settings" class="fixed inset-0 z-50 hidden">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
@@ -550,11 +557,20 @@
               <i data-lucide="x" class="w-6 h-6"></i>
             </button>
           </div>
+          
           <div class="space-y-4">
+            <button id="theme-toggle-btn" class="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all">
+              <div class="flex items-center gap-3">
+                <i data-lucide="palette" class="w-5 h-5 text-blue-400"></i>
+                <span class="font-semibold">Tema</span>
+              </div>
+              <span id="theme-toggle-text" class="text-sm text-slate-400">Escuro</span>
+            </button>
+            
             <button onclick="clearAllLocalStorage()" class="w-full flex items-center justify-between p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20">
               <div class="flex items-center gap-3">
                 <i data-lucide="trash-2" class="w-5 h-5"></i>
-                <span class="font-semibold">Limpar Dados Locais</span>
+                <span class="font-semibold">Limpar Dados</span>
               </div>
             </button>
           </div>
@@ -562,84 +578,19 @@
       </div>
     </div>
 
-    <!-- JAVASCRIPT -->
+    <!-- JavaScript -->
+    <script src="./script.js"></script>
     <script>
-      // --- DADOS INICIAIS (Alagoinhas) ---
-      const defaultEvents = [
-        {
-          id: 1,
-          title: "Micareta de Alagoinhas 2024",
-          category: "micareta",
-          description: "A maior micareta do interior da Bahia! Três dias de muita música, trios elétricos e alegria nas ruas da cidade.",
-          date: "2024-03-28",
-          time: "18:00",
-          location: "Circuito do Fofão, Alagoinhas - BA",
-          image: "https://images.unsplash.com/photo-1533174072545-e8d4aa97edf9?w=800&q=80",
-          isPaid: true,
-          price: "R$ 150,00 (Abada)",
-          ticketLink: "#"
-        },
-        {
-          id: 2,
-          title: "São João no Parque de Exposições",
-          category: "sao-joao",
-          description: "Arraiá do Povo com as melhores bandas de forró pé-de-serra, quadrilhas e muita comida típica.",
-          date: "2024-06-20",
-          time: "19:00",
-          location: "Parque de Exposições de Alagoinhas",
-          image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
-          isPaid: false,
-          price: "Gratuito",
-          ticketLink: ""
-        },
-        {
-          id: 3,
-          title: "Feira de Artesanato e Cultura",
-          category: "cultura",
-          description: "Exposição e venda de produtos de artesãos locais, apresentações de capoeira e música ao vivo.",
-          date: "2024-04-15",
-          time: "09:00",
-          location: "Praça Rui Barbosa, Centro",
-          image: "https://images.unsplash.com/photo-1459749411177-0473ef716175?w=800&q=80",
-          isPaid: false,
-          price: "Gratuito",
-          ticketLink: ""
-        },
-        {
-          id: 4,
-          title: "Campeonato Municipal de Futebol",
-          category: "esportes",
-          description: "Final do campeonato interbairros com as melhores equipes da cidade.",
-          date: "2024-05-10",
-          time: "15:00",
-          location: "Estádio Carneirão",
-          image: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80",
-          isPaid: true,
-          price: "R$ 10,00",
-          ticketLink: "#"
-        }
-      ];
+      // Initialize Lucide Icons
+      lucide.createIcons();
 
-      let events = JSON.parse(localStorage.getItem('alagoinhas_events')) || defaultEvents;
-      let currentCategory = 'todos';
-      let currentUser = JSON.parse(localStorage.getItem('alagoinhas_user')) || null;
-
-      // --- INICIALIZAÇÃO ---
-      window.addEventListener('load', () => {
-        createParticles();
-        initLoader();
-        renderEvents();
-        updateUserUI();
-        lucide.createIcons();
-      });
-
-      // --- LOADER ---
+      // Loader Animation
       function initLoader() {
         const loader = document.getElementById('app-loader');
         const progressBar = document.getElementById('loader-progress-bar');
         const loaderText = document.getElementById('loader-text');
-        let progress = 0;
         
+        let progress = 0;
         const interval = setInterval(() => {
           progress += Math.random() * 15;
           if (progress >= 100) {
@@ -647,9 +598,11 @@
             clearInterval(interval);
             progressBar.style.width = '100%';
             loaderText.textContent = '100%';
+            
             setTimeout(() => {
               loader.style.opacity = '0';
-              setTimeout(() => loader.style.display = 'none', 500);
+              loader.style.pointerEvents = 'none';
+              setTimeout(() => loader.remove(), 500);
             }, 500);
           } else {
             progressBar.style.width = progress + '%';
@@ -658,9 +611,10 @@
         }, 200);
       }
 
+      // Create Particles
       function createParticles() {
         const container = document.getElementById('particles-container');
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 50; i++) {
           const particle = document.createElement('div');
           particle.className = 'particle';
           particle.style.left = Math.random() * 100 + '%';
@@ -670,159 +624,14 @@
         }
       }
 
-      // --- RENDERIZAÇÃO DE EVENTOS ---
-      function renderEvents() {
-        const grid = document.getElementById('events-grid-container');
-        const emptyState = document.getElementById('empty-state');
-        const searchTerm = document.getElementById('search-input').value.toLowerCase();
-        
-        grid.innerHTML = '';
-        
-        const filtered = events.filter(e => {
-          const matchesCategory = currentCategory === 'todos' || e.category === currentCategory;
-          const matchesSearch = e.title.toLowerCase().includes(searchTerm) || e.location.toLowerCase().includes(searchTerm);
-          return matchesCategory && matchesSearch;
-        });
+      // Initialize
+      window.addEventListener('load', () => {
+        createParticles();
+        initLoader();
+      });
 
-        if (filtered.length === 0) {
-          emptyState.classList.remove('hidden');
-        } else {
-          emptyState.classList.add('hidden');
-          filtered.forEach((event, index) => {
-            const card = document.createElement('div');
-            card.className = 'event-card glass-card rounded-3xl overflow-hidden group relative';
-            card.style.animation = `revealText 0.6s ease forwards ${index * 0.1}s`;
-            card.style.opacity = '0'; // Inicia invisível para a animação
-            
-            const dateObj = new Date(event.date + 'T00:00:00');
-            const dateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-            
-            card.innerHTML = `
-              <div class="relative h-48 overflow-hidden">
-                <img src="${event.image}" alt="${event.title}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
-                <div class="absolute top-4 right-4 glass-effect px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-white">
-                  ${event.category}
-                </div>
-                ${event.isPaid ? `<div class="absolute top-4 left-4 bg-yellow-500 text-slate-900 px-3 py-1 rounded-full text-xs font-bold">Pago</div>` : ''}
-              </div>
-              <div class="p-6">
-                <div class="flex items-center gap-2 text-blue-400 text-sm font-semibold mb-2">
-                  <i data-lucide="calendar" class="w-4 h-4"></i>
-                  <span>${dateStr} • ${event.time}</span>
-                </div>
-                <h3 class="text-xl font-bold font-display mb-2 group-hover:text-blue-400 transition-colors">${event.title}</h3>
-                <p class="text-slate-400 text-sm mb-4 line-clamp-2">${event.description}</p>
-                <div class="flex items-center gap-2 text-slate-300 text-sm mb-6">
-                  <i data-lucide="map-pin" class="w-4 h-4 text-yellow-500"></i>
-                  <span class="truncate">${event.location}</span>
-                </div>
-                <div class="flex items-center justify-between pt-4 border-t border-white/10">
-                  <span class="text-lg font-bold ${event.isPaid ? 'text-green-400' : 'text-white'}">${event.price || 'Gratuito'}</span>
-                  <button class="px-4 py-2 bg-white/10 hover:bg-blue-600 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2">
-                    Detalhes <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                  </button>
-                </div>
-              </div>
-            `;
-            grid.appendChild(card);
-          });
-          lucide.createIcons();
-        }
-      }
-
-      function setCategory(cat) {
-        currentCategory = cat;
-        document.querySelectorAll('.category-pill').forEach(btn => {
-          btn.classList.remove('bg-blue-600', 'text-white');
-          btn.classList.add('glass-effect', 'text-slate-300');
-        });
-        event.target.classList.remove('glass-effect', 'text-slate-300');
-        event.target.classList.add('bg-blue-600', 'text-white');
-        renderEvents();
-      }
-
-      function filterEvents() {
-        renderEvents();
-      }
-
-      function clearAllFilters() {
-        currentCategory = 'todos';
-        document.getElementById('search-input').value = '';
-        document.querySelectorAll('.category-pill').forEach((btn, idx) => {
-          if (idx === 0) {
-            btn.classList.add('bg-blue-600', 'text-white');
-            btn.classList.remove('glass-effect', 'text-slate-300');
-          } else {
-            btn.classList.remove('bg-blue-600', 'text-white');
-            btn.classList.add('glass-effect', 'text-slate-300');
-          }
-        });
-        renderEvents();
-      }
-
-      // --- SISTEMA DE LOGIN (MOCK + REAL) ---
-      function mockGoogleLogin() {
-        // Simula um login bem-sucedido do Google para demonstração
-        const mockUser = {
-          name: "Visitante Alagoinhas",
-          email: "visitante@alagoinhas.ba",
-          picture: "https://ui-avatars.com/api/?name=Visitante+Alagoinhas&background=0066CC&color=fff"
-        };
-        currentUser = mockUser;
-        localStorage.setItem('alagoinhas_user', JSON.stringify(currentUser));
-        updateUserUI();
-      }
-
-      // Função de callback para o Google Identity Services REAL (Produção)
-      function handleRealGoogleLogin(response) {
-        // Decodifica o JWT do Google (em produção, valide no backend)
-        const credential = response.credential;
-        const payload = JSON.parse(atob(credential.split('.')[1]));
-        
-        currentUser = {
-          name: payload.name,
-          email: payload.email,
-          picture: payload.picture
-        };
-        localStorage.setItem('alagoinhas_user', JSON.stringify(currentUser));
-        updateUserUI();
-      }
-
-      function logout() {
-        currentUser = null;
-        localStorage.removeItem('alagoinhas_user');
-        updateUserUI();
-      }
-
-      function updateUserUI() {
-        const container = document.getElementById('header-user-container');
-        if (currentUser) {
-          container.innerHTML = `
-            <div class="flex items-center gap-3 pl-3 border-l border-white/10">
-              <div class="text-right hidden sm:block">
-                <p class="text-sm font-semibold text-white">${currentUser.name}</p>
-                <p class="text-xs text-slate-400">Logado</p>
-              </div>
-              <img src="${currentUser.picture}" alt="User" class="w-10 h-10 rounded-full border-2 border-blue-500 cursor-pointer" onclick="logout()" title="Clique para sair">
-            </div>
-          `;
-        } else {
-          container.innerHTML = `
-            <button onclick="mockGoogleLogin()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 font-semibold hover:bg-slate-200 transition-all text-sm">
-              <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              Entrar
-            </button>
-          `;
-        }
-      }
-
-      // --- MODAIS E FORMULÁRIOS ---
+      // Modal Animations
       function openAddEventModal() {
-        if (!currentUser) {
-          alert("Por favor, faça login com o Google para anunciar um evento.");
-          mockGoogleLogin(); // Simula login para facilitar o teste
-          return;
-        }
         const modal = document.getElementById('modal-add-event');
         const content = document.getElementById('modal-add-event-content');
         modal.classList.remove('hidden');
@@ -838,11 +647,7 @@
         const content = document.getElementById('modal-add-event-content');
         content.classList.remove('scale-100', 'opacity-100');
         content.classList.add('scale-95', 'opacity-0');
-        setTimeout(() => {
-          modal.classList.add('hidden');
-          document.getElementById('add-event-form').reset();
-          togglePaidFields();
-        }, 300);
+        setTimeout(() => modal.classList.add('hidden'), 300);
       }
 
       function openSettingsModal() {
@@ -853,6 +658,7 @@
           content.classList.remove('scale-95', 'opacity-0');
           content.classList.add('scale-100', 'opacity-100');
         }, 10);
+        lucide.createIcons();
       }
 
       function closeSettingsModal() {
@@ -863,52 +669,15 @@
         setTimeout(() => modal.classList.add('hidden'), 300);
       }
 
-      function togglePaidFields() {
-        const isPaid = document.getElementById('form-is-paid').checked;
-        const fields = document.getElementById('form-paid-fields');
-        if (isPaid) fields.classList.remove('hidden');
-        else fields.classList.add('hidden');
-      }
-
-      function handleAddEvent(e) {
-        e.preventDefault();
-        const newEvent = {
-          id: Date.now(),
-          title: document.getElementById('form-title').value,
-          category: document.getElementById('form-cat').value,
-          description: document.getElementById('form-desc').value,
-          date: document.getElementById('form-date').value,
-          time: document.getElementById('form-time').value,
-          location: document.getElementById('form-location').value,
-          image: document.getElementById('form-img').value || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80",
-          isPaid: document.getElementById('form-is-paid').checked,
-          price: document.getElementById('form-price').value || "Gratuito",
-          ticketLink: document.getElementById('form-ticket-link').value
-        };
-        
-        events.unshift(newEvent);
-        localStorage.setItem('alagoinhas_events', JSON.stringify(events));
-        closeAddEventModal();
-        renderEvents();
-        
-        // Feedback visual
-        const btn = document.querySelector('button[type="submit"]');
-        const originalText = btn.innerText;
-        btn.innerText = "Publicado com Sucesso!";
-        btn.classList.add('bg-green-600');
-        setTimeout(() => {
-          btn.innerText = originalText;
-          btn.classList.remove('bg-green-600');
-        }, 2000);
-      }
-
-      function clearAllLocalStorage() {
-        if(confirm("Deseja realmente limpar todos os dados locais?")) {
-          localStorage.removeItem('alagoinhas_events');
-          localStorage.removeItem('alagoinhas_user');
-          location.reload();
+      // Paid Fields Toggle
+      document.getElementById('form-is-paid')?.addEventListener('change', function() {
+        const paidFields = document.getElementById('form-paid-fields');
+        if (this.checked) {
+          paidFields.classList.remove('hidden');
+        } else {
+          paidFields.classList.add('hidden');
         }
-      }
+      });
     </script>
-</body>
+  </body>
 </html>
