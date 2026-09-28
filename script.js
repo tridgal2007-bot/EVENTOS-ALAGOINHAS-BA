@@ -1,919 +1,684 @@
-// Initial Preset Events Data
-const DEFAULT_EVENTS = [
-  {
-    id: "bailao-black-2026",
-    title: "BAILÃO DO BLACK - 2026 | Todos de preto!",
-    description: "Bailão do Black 2026 promete uma noite em tom all black para agitar Alagoinhas. Muito funk, trap e pagodão na Arena 101. Lotes disponíveis: Individual R$ 26,00 | Casadinha R$ 21,00 (taxa inclusa).",
-    category: "shows",
-    date: "2026-09-05",
-    time: "21:00",
-    location: "Arena 101, BR-101 - Alagoinhas/Bahia",
-    imageUrl: "Imagens/imagem1.png",
-    organizer: "Sympla",
-    isFeatured: true,
-    createdTimestamp: Date.now(),
-    isPaid: true,
-    ticketPrice: "A partir de R$ 21,00",
-    ticketLink: "https://www.sympla.com.br/evento/bailao-do-black-2026-todos-de-preto/3525766?referrer=www.grupsapp.com&referrer=www.grupsapp.com"
-  }
-];
+/* ============================================
+   SCRIPT PRINCIPAL - ALAGOINHAS EVENTOS
+   ============================================ */
 
-// Presets Avatars
-const AVATAR_PRESETS = [
-  { icon: "👌", name: "Pitú", class: "bg-amber-500 text-white" },
-  { icon: "💃", name: "Hittler", class: "bg-pink-500 text-white" },
-  { icon: "🌴", name: "KID B", class: "bg-emerald-500 text-white" },
-  { icon: "⚽", name: "CV", class: "bg-blue-500 text-white" },
-  { icon: "🎭", name: "BDM", class: "bg-purple-500 text-white" }
-];
-
-const CATEGORY_MAP = {
-  all: { label: "Todos", class: "bg-blue-600 border-blue-600 text-white" },
-  shows: { label: "Shows & Festas", class: "bg-blue-500/10 border-blue-500/20 text-blue-400" },
-  sports: { label: "Esportes & Saúde", class: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" },
-  culture: { label: "Teatro & Cultura", class: "bg-purple-500/10 border-purple-500/20 text-purple-400" },
-  local_fest: { label: "Eventos Locais", class: "bg-amber-500/10 border-amber-500/20 text-amber-400" },
-  lectures: { label: "Aulas & Palestras", class: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" }
-};
-
-// Application State
-let events = [];
-let favorites = [];
+let allEvents = [];
+let activeCategory = 'all';
 let currentUser = null;
-let theme = "dark";
-let sidebarOpen = false;
-let selectedDate = null;
-let selectedCategory = "all";
-let searchQuery = "";
-let showOnlyFavorites = false;
+let currentProfile = null;
+let isRegisterMode = false;
+let isAdmin = false; // NOVA VARIÁVEL
 
-// Calendar State
-let calendarYear = 2026;
-let calendarMonth = 8; // Setembro (0-indexed)
+/* ============================================
+   CATEGORIAS
+   ============================================ */
+const CATEGORIES = [
+    { id: 'all',         label: 'Todos os eventos',  icon: 'layout-grid',  color: 'bg-alagoinhas-500' },
+    { id: 'shows',       label: 'Shows e Música',     icon: 'mic-2',        color: 'bg-fuchsia-500' },
+    { id: 'festas',      label: 'Festas e Forró',     icon: 'party-popper', color: 'bg-amber-500' },
+    { id: 'cultura',     label: 'Cultura e Arte',     icon: 'palette',      color: 'bg-purple-500' },
+    { id: 'esportes',    label: 'Esportes',           icon: 'trophy',       color: 'bg-emerald-500' },
+    { id: 'gastronomia', label: 'Gastronomia',        icon: 'utensils',     color: 'bg-orange-500' },
+    { id: 'infantil',    label: 'Infantil',           icon: 'baby',         color: 'bg-pink-500' },
+    { id: 'religioso',   label: 'Religioso',          icon: 'church',       color: 'bg-sky-500' },
+    { id: 'outros',      label: 'Outros',             icon: 'tag',          color: 'bg-slate-500' }
+];
 
-// Audio Chime Generator
-function playChime() {
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12);
-    
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {
-    console.warn("Web Audio API not supported or blocked", e);
-  }
+function categoryMeta(id) {
+    return CATEGORIES.find(c => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 }
 
-// Initialize App
-document.addEventListener("DOMContentLoaded", () => {
-  initLoader();
-  loadData();
-  applyTheme();
-  setupEventListeners();
-  renderCalendar();
-  renderEvents();
-  renderHeaderUser();
-  updateFiltersDisplay();
+/* ============================================
+   RENDERIZAR LISTA DE CATEGORIAS
+   ============================================ */
+function renderCategoryList() {
+    const list = document.getElementById('category-list');
+    if (!list) return;
+
+    list.innerHTML = CATEGORIES.map(cat => `
+        <button type="button" data-category="${cat.id}" class="category-chip ${cat.id === activeCategory ? 'active' : ''} w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-alagoinhas-100 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:bg-alagoinhas-50 dark:hover:bg-white/10 text-left">
+            <span class="chip-icon-wrap w-9 h-9 rounded-xl ${cat.color} bg-opacity-15 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="${cat.icon}" class="w-4 h-4 text-alagoinhas-700 dark:text-alagoinhas-100"></i>
+            </span>
+            <span class="font-semibold text-alagoinhas-900 dark:text-alagoinhas-50">${cat.label}</span>
+        </button>
+    `).join('');
+
+    if (window.lucide) lucide.createIcons();
+
+    list.querySelectorAll('.category-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeCategory = btn.dataset.category;
+            updateCategoryUI();
+            applyFilters();
+            closeCategoryDrawer();
+        });
+    });
+}
+
+/* ============================================
+   ATUALIZAR UI DE CATEGORIAS
+   ============================================ */
+function updateCategoryUI() {
+    document.querySelectorAll('.category-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.category === activeCategory);
+    });
+
+    const badge = document.getElementById('category-badge');
+    const label = document.getElementById('category-label');
+    const pillWrap = document.getElementById('active-category-pill');
+    const pillText = document.getElementById('active-category-text');
+
+    if (activeCategory === 'all') {
+        if (badge) badge.classList.add('hidden');
+        if (label) label.textContent = 'Categorias';
+        if (pillWrap) pillWrap.classList.add('hidden');
+    } else {
+        const meta = categoryMeta(activeCategory);
+        if (badge) badge.classList.remove('hidden');
+        if (label) label.textContent = 'Categorias';
+        if (pillWrap) {
+            pillWrap.classList.remove('hidden');
+            pillWrap.classList.add('flex');
+        }
+        if (pillText) pillText.textContent = meta.label;
+    }
+}
+
+/* ============================================
+   GAVETA DE CATEGORIAS
+   ============================================ */
+function openCategoryDrawer() {
+    const drawer = document.getElementById('category-drawer');
+    if (!drawer) return;
+    drawer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCategoryDrawer() {
+    const drawer = document.getElementById('category-drawer');
+    if (!drawer) return;
+    drawer.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+window.openCategoryDrawer = openCategoryDrawer;
+window.closeCategoryDrawer = closeCategoryDrawer;
+
+/* ============================================
+   VERIFICAR STATUS DE ADMIN
+   ============================================ */
+async function checkAdminStatus() {
+    if (!currentUser) {
+        isAdmin = false;
+        return;
+    }
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('admins')
+            .select('email')
+            .eq('email', currentUser.email)
+            .single();
+        
+        isAdmin = !!data;
+        
+        const adminLink = document.getElementById('admin-link');
+        if (adminLink) {
+            if (isAdmin) {
+                adminLink.classList.remove('hidden');
+                adminLink.style.display = '';
+            } else {
+                adminLink.classList.add('hidden');
+            }
+        }
+    } catch (error) {
+        isAdmin = false;
+        const adminLink = document.getElementById('admin-link');
+        if (adminLink) adminLink.classList.add('hidden');
+    }
+}
+
+/* ============================================
+   CARREGAMENTO DE EVENTOS
+   ============================================ */
+async function loadEvents() {
+    const container = document.getElementById('events');
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('events')
+            .select('*')
+            .order('date', { ascending: true });
+
+        if (error) throw error;
+
+        allEvents = data || [];
+        renderEvents(allEvents);
+
+        if (window.hideLoadingScreen) {
+            window.hideLoadingScreen();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar eventos:', error);
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
+                    <i data-lucide="alert-circle" class="w-8 h-8 text-red-400"></i>
+                </div>
+                <p class="text-red-500 dark:text-red-400 text-lg font-semibold">Erro ao carregar eventos.</p>
+                <p class="text-slate-500 dark:text-slate-400 text-sm mt-2">Verifique a configuração do Supabase.</p>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+        if (window.hideLoadingScreen) window.hideLoadingScreen();
+    }
+}
+
+/* ============================================
+   RENDERIZAR EVENTOS
+   ============================================ */
+function renderEvents(events) {
+    const container = document.getElementById('events');
+
+    if (events.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-20">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full glass-effect mb-4">
+                    <i data-lucide="search-x" class="w-8 h-8 text-alagoinhas-300"></i>
+                </div>
+                <p class="event-title text-lg font-semibold">Nenhum evento encontrado 😢</p>
+                <p class="event-desc text-sm mt-2">Tente ajustar os filtros de busca</p>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = events.map((ev, idx) => {
+        const date = new Date(ev.date);
+        const dateStr = date.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        const badge = ev.has_ticket
+            ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-alagoinhas-500/20 text-alagoinhas-700 dark:text-alagoinhas-300 text-xs font-bold border border-alagoinhas-500/30"><i data-lucide="ticket" class="w-3.5 h-3.5"></i> R$ ${Number(ev.price).toFixed(2)}</span>`
+            : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-500/30"><i data-lucide="gift" class="w-3.5 h-3.5"></i> Gratuito</span>`;
+
+        const meta = categoryMeta(ev.category);
+        const categoryTag = `<span class="absolute top-3 left-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${meta.color} text-white text-xs font-bold shadow-lg backdrop-blur-sm"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i> ${meta.label}</span>`;
+
+        return `
+            <article class="event-card cursor-pointer group" data-event-id="${ev.id}" onclick="openModalById(${ev.id})">
+                <div class="relative overflow-hidden h-48">
+                    <img src="${ev.image}" alt="${escapeHtml(ev.name)}" onerror="this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80'" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80"></div>
+                    ${ev.category ? categoryTag : ''}
+                </div>
+                <div class="p-5 flex flex-col flex-1">
+                    <h3 class="text-xl font-bold event-title mb-2 line-clamp-2 group-hover:text-alagoinhas-500 transition-colors">${escapeHtml(ev.name)}</h3>
+                    <p class="flex items-center gap-2 event-date text-sm font-medium mb-3">
+                        <i data-lucide="calendar" class="w-4 h-4"></i> ${dateStr}
+                    </p>
+                    <p class="event-desc text-sm line-clamp-3 mb-4 flex-1">${escapeHtml(ev.description)}</p>
+                    <div class="mt-auto">${badge}</div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    if (window.lucide) setTimeout(() => lucide.createIcons(), 50);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/* ============================================
+   MODAL DE EVENTO
+   ============================================ */
+function openModalById(id) {
+    const ev = allEvents.find(e => e.id === id);
+    if (!ev) return;
+    openModal(ev);
+}
+window.openModalById = openModalById;
+
+function openModal(eventData) {
+    const date = new Date(eventData.date);
+    const dateStr = date.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    document.getElementById('modal-img').src = eventData.image;
+    document.getElementById('modal-title').textContent = eventData.name;
+    document.getElementById('modal-date').innerHTML = `<i data-lucide="clock" class="w-5 h-5"></i> ${dateStr}`;
+    document.getElementById('modal-desc').textContent = eventData.description;
+
+    const modalCategory = document.getElementById('modal-category');
+    if (modalCategory) {
+        if (eventData.category) {
+            const meta = categoryMeta(eventData.category);
+            modalCategory.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${meta.color} text-white text-xs font-bold shadow-lg"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i> ${meta.label}</span>`;
+            modalCategory.classList.remove('hidden');
+        } else {
+            modalCategory.classList.add('hidden');
+        }
+    }
+
+    const priceEl = document.getElementById('modal-price');
+    const linkEl = document.getElementById('modal-link');
+
+    if (eventData.has_ticket) {
+        priceEl.innerHTML = `<span class="block text-slate-500 dark:text-slate-400 text-sm font-normal mb-1">Valor do ingresso</span>R$ ${Number(eventData.price).toFixed(2)}`;
+        priceEl.classList.remove('hidden');
+        if (eventData.link) {
+            linkEl.href = eventData.link;
+            linkEl.classList.remove('hidden');
+            linkEl.classList.add('inline-flex');
+        } else {
+            linkEl.classList.add('hidden');
+            linkEl.classList.remove('inline-flex');
+        }
+    } else {
+        priceEl.innerHTML = `<span class="block text-slate-500 dark:text-slate-400 text-sm font-normal mb-1">Entrada</span><span class="text-emerald-500">Gratuita</span>`;
+        priceEl.classList.remove('hidden');
+        linkEl.classList.add('hidden');
+        linkEl.classList.remove('inline-flex');
+    }
+
+    const modal = document.getElementById('modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+
+    if (window.lucide) setTimeout(() => lucide.createIcons(), 50);
+}
+window.openModal = openModal;
+
+function closeModal() {
+    const modal = document.getElementById('modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+window.closeModal = closeModal;
+
+/* ============================================
+   AUTENTICAÇÃO
+   ============================================ */
+async function checkAuth() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    currentUser = session?.user || null;
+    
+    if (currentUser) {
+        await loadProfile();
+        await checkAdminStatus(); // VERIFICA SE É ADMIN
+    } else {
+        isAdmin = false;
+    }
+    
+    updateAuthUI();
+}
+
+async function loadProfile() {
+    if (!currentUser) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+        if (error) throw error;
+        currentProfile = data;
+    } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+    }
+}
+
+function updateAuthUI() {
+    const loginButton = document.getElementById('login-button');
+    const userMenu = document.getElementById('user-menu');
+    const adminLink = document.getElementById('admin-link');
+    const userName = document.getElementById('user-name');
+    const userEmail = document.getElementById('dropdown-email');
+    const dropdownName = document.getElementById('dropdown-name');
+    const userAvatar = document.getElementById('user-avatar');
+    const userAvatarIcon = document.getElementById('user-avatar-icon');
+
+    if (currentUser) {
+        if (loginButton) loginButton.classList.add('hidden');
+        if (userMenu) {
+            userMenu.classList.remove('hidden');
+            const displayName = currentProfile?.full_name || currentUser.email.split('@')[0];
+            const avatarUrl = currentProfile?.avatar_url;
+            
+            if (userName) userName.textContent = displayName;
+            if (dropdownName) dropdownName.textContent = displayName;
+            if (userEmail) userEmail.textContent = currentUser.email;
+            
+            if (avatarUrl) {
+                userAvatar.src = avatarUrl;
+                userAvatar.classList.remove('hidden');
+                userAvatarIcon.classList.add('hidden');
+            } else {
+                userAvatar.classList.add('hidden');
+                userAvatarIcon.classList.remove('hidden');
+            }
+        }
+        if (adminLink) {
+            if (isAdmin) {
+                adminLink.classList.remove('hidden');
+                adminLink.style.display = '';
+            } else {
+                adminLink.classList.add('hidden');
+            }
+        }
+    } else {
+        if (loginButton) loginButton.classList.remove('hidden');
+        if (userMenu) userMenu.classList.add('hidden');
+        if (adminLink) adminLink.classList.add('hidden');
+    }
+}
+
+function openAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    if (window.lucide) lucide.createIcons();
+}
+window.openAuthModal = openAuthModal;
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    document.getElementById('auth-form').reset();
+    document.getElementById('auth-message').classList.add('hidden');
+    isRegisterMode = false;
+    updateAuthModeUI();
+}
+window.closeAuthModal = closeAuthModal;
+
+function updateAuthModeUI() {
+    const title = document.getElementById('auth-title');
+    const submit = document.getElementById('auth-submit');
+    const toggle = document.getElementById('toggle-auth-mode');
+
+    if (isRegisterMode) {
+        title.textContent = 'Criar Conta';
+        submit.textContent = 'Criar Conta';
+        toggle.textContent = 'Já tem conta? Entrar';
+    } else {
+        title.textContent = 'Entrar';
+        submit.textContent = 'Entrar';
+        toggle.textContent = 'Não tem conta? Criar uma';
+    }
+}
+
+function showAuthMessage(message, type) {
+    const msgEl = document.getElementById('auth-message');
+    msgEl.textContent = message;
+    msgEl.className = `text-sm font-semibold p-3 rounded-xl ${
+        type === 'error' 
+            ? 'bg-red-500/10 text-red-500 border border-red-500/20' 
+            : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+    }`;
+    msgEl.classList.remove('hidden');
+}
+
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const submitBtn = document.getElementById('auth-submit');
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline-block"></i> Processando...';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        let result;
+        if (isRegisterMode) {
+            result = await supabaseClient.auth.signUp({ email, password });
+            if (result.error) throw result.error;
+            showAuthMessage('Conta criada com sucesso! Verifique seu email para confirmar.', 'success');
+            setTimeout(() => {
+                isRegisterMode = false;
+                updateAuthModeUI();
+                document.getElementById('auth-form').reset();
+                document.getElementById('auth-message').classList.add('hidden');
+            }, 3000);
+        } else {
+            result = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (result.error) throw result.error;
+            currentUser = result.data.user;
+            await loadProfile();
+            await checkAdminStatus();
+            updateAuthUI();
+            closeAuthModal();
+        }
+    } catch (error) {
+        console.error('Auth error:', error);
+        showAuthMessage(error.message || 'Erro ao processar. Tente novamente.', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isRegisterMode ? 'Criar Conta' : 'Entrar';
+    }
 });
 
-// Minimal Loader Progress Simulation
-function initLoader() {
-  const loader = document.getElementById("app-loader");
-  const progressFill = document.getElementById("loader-progress-fill");
-  const progressText = document.getElementById("loader-progress-text");
-  
-  if (!loader) return;
-  
-  let progress = 0;
-  const interval = setInterval(() => {
-    progress += Math.floor(Math.random() * 12) + 8;
-    if (progress >= 100) {
-      progress = 100;
-      clearInterval(interval);
-      setTimeout(() => {
-        loader.classList.add("opacity-0", "pointer-events-none");
-        setTimeout(() => loader.remove(), 400);
-      }, 250);
+document.getElementById('toggle-auth-mode').addEventListener('click', () => {
+    isRegisterMode = !isRegisterMode;
+    updateAuthModeUI();
+    document.getElementById('auth-message').classList.add('hidden');
+});
+
+document.getElementById('google-login').addEventListener('click', async () => {
+    try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.origin + '/index.html' }
+        });
+        if (error) throw error;
+    } catch (error) {
+        console.error('Google login error:', error);
+        showAuthMessage(error.message || 'Erro ao fazer login com Google.', 'error');
     }
-    if (progressFill) progressFill.style.width = `${progress}%`;
-    if (progressText) progressText.textContent = `${progress}%`;
-  }, 45);
-}
+});
 
-// Load Persistent Data from LocalStorage
-function loadData() {
-  theme = localStorage.getItem("alagoinhas_theme") || "dark";
-  
-  const savedEvents = localStorage.getItem("alagoinhas_events");
-  if (savedEvents) {
-    const parsedEvents = JSON.parse(savedEvents);
-    if (parsedEvents && parsedEvents.length > 0) {
-      events = parsedEvents;
-    } else {
-      events = [...DEFAULT_EVENTS];
-      localStorage.setItem("alagoinhas_events", JSON.stringify(events));
-    }
-  } else {
-    events = [...DEFAULT_EVENTS];
-    localStorage.setItem("alagoinhas_events", JSON.stringify(events));
-  }
-  
-  const savedFavs = localStorage.getItem("alagoinhas_favorites");
-  if (savedFavs) {
-    favorites = JSON.parse(savedFavs);
-  } else {
-    favorites = [];
-  }
-  
-  const savedUser = localStorage.getItem("alagoinhas_user");
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-  }
-}
-
-function applyTheme() {
-  const body = document.body;
-  const themeToggleIcon = document.getElementById("theme-toggle-icon");
-  const themeToggleText = document.getElementById("theme-toggle-text");
-  
-  if (theme === "dark") {
-    body.classList.add("dark", "bg-[#070c19]", "text-white");
-    body.classList.remove("bg-[#f3f6fc]", "text-slate-800");
-    if (themeToggleIcon) themeToggleIcon.setAttribute("data-lucide", "sun");
-    if (themeToggleText) themeToggleText.textContent = "Modo Claro";
-  } else {
-    body.classList.add("bg-[#f3f6fc]", "text-slate-800");
-    body.classList.remove("dark", "bg-[#070c19]", "text-white");
-    if (themeToggleIcon) themeToggleIcon.setAttribute("data-lucide", "moon");
-    if (themeToggleText) themeToggleText.textContent = "Modo Escuro";
-  }
-  
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
-
-function renderHeaderUser() {
-  const userContainer = document.getElementById("header-user-container");
-  if (!userContainer) return;
-  
-  if (currentUser) {
-    userContainer.innerHTML = `
-      <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 bg-white/5 border border-white/10 rounded-full max-w-[100px] sm:max-w-[150px] truncate cursor-pointer" onclick="openLoginModal()">
-        <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs shrink-0 ${AVATAR_PRESETS[currentUser.avatarIdx]?.class}">
-          ${AVATAR_PRESETS[currentUser.avatarIdx]?.icon}
-        </div>
-        <span class="hidden xs:inline text-[10px] sm:text-xs font-bold text-white truncate">${currentUser.name}</span>
-      </div>
-    `;
-  } else {
-    userContainer.innerHTML = `
-      <button onclick="openLoginModal()" class="flex items-center gap-1.5 text-[10px] sm:text-xs font-black text-white hover:text-blue-300 transition-colors px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white/5 rounded-full border border-white/5 hover:border-white/10 cursor-pointer shrink-0">
-        <i data-lucide="user" class="w-3.5 h-3.5"></i>
-        <span class="hidden xs:inline">Entrar</span>
-      </button>
-    `;
-  }
-  
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
-
-function renderCalendar() {
-  const monthTitle = document.getElementById("calendar-month-title");
-  const daysGrid = document.getElementById("calendar-days-grid");
-  if (!monthTitle || !daysGrid) return;
-  
-  const monthNames = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
-  
-  monthTitle.textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
-  
-  daysGrid.innerHTML = "";
-  
-  const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
-  const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-  const prevMonthTotalDays = new Date(calendarYear, calendarMonth, 0).getDate();
-  
-  for (let i = firstDayIndex - 1; i >= 0; i--) {
-    const dayNum = prevMonthTotalDays - i;
-    const btn = document.createElement("button");
-    btn.disabled = true;
-    btn.className = "p-1.5 text-center text-xs text-slate-600 font-medium opacity-40 cursor-not-allowed";
-    btn.textContent = dayNum;
-    daysGrid.appendChild(btn);
-  }
-  
-  for (let d = 1; d <= totalDays; d++) {
-    const dayStr = String(d).padStart(2, '0');
-    const monthStr = String(calendarMonth + 1).padStart(2, '0');
-    const fullDateStr = `${calendarYear}-${monthStr}-${dayStr}`;
-    
-    const hasEvents = events.some(e => e.date === fullDateStr);
-    const isSelected = selectedDate === fullDateStr;
-    
-    const today = new Date();
-    const isToday = today.getDate() === d && today.getMonth() === calendarMonth && today.getFullYear() === calendarYear;
-    
-    const btn = document.createElement("button");
-    btn.className = `calendar-day-btn w-8 h-8 rounded-full text-xs font-bold transition-all flex flex-col items-center justify-center cursor-pointer relative active:scale-95
-      ${isSelected 
-        ? "bg-blue-600 text-white shadow-md font-black" 
-        : isToday 
-          ? "border border-blue-400 text-blue-400 font-extrabold" 
-          : theme === "dark" 
-            ? "text-slate-300 hover:bg-white/5" 
-            : "text-slate-700 hover:bg-slate-200"
-      }`;
-      
-    btn.onclick = () => selectCalendarDate(fullDateStr);
-    btn.textContent = d;
-    
-    if (hasEvents && !isSelected) {
-      const dot = document.createElement("span");
-      dot.className = "absolute bottom-1 w-1 h-1 bg-blue-400 rounded-full";
-      btn.appendChild(dot);
-    }
-    
-    daysGrid.appendChild(btn);
-  }
-}
-
-function selectCalendarDate(dateStr) {
-  if (selectedDate === dateStr) {
-    selectedDate = null;
-  } else {
-    selectedDate = dateStr;
-  }
-  renderCalendar();
-  renderEvents();
-  updateFiltersDisplay();
-}
-
-function nextMonth() {
-  calendarMonth++;
-  if (calendarMonth > 11) {
-    calendarMonth = 0;
-    calendarYear++;
-  }
-  renderCalendar();
-}
-
-function prevMonth() {
-  calendarMonth--;
-  if (calendarMonth < 0) {
-    calendarMonth = 11;
-    calendarYear--;
-  }
-  renderCalendar();
-}
-
-function renderEvents() {
-  const eventsContainer = document.getElementById("events-grid-container");
-  const featuredSection = document.getElementById("featured-event-section");
-  if (!eventsContainer) return;
-  
-  const filtered = events.filter(event => {
-    const searchMatch = searchQuery === "" || 
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.organizer.toLowerCase().includes(searchQuery.toLowerCase());
-      
-    const categoryMatch = selectedCategory === "all" || event.category === selectedCategory;
-    const dateMatch = !selectedDate || event.date === selectedDate;
-    const favMatch = !showOnlyFavorites || favorites.includes(event.id);
-    
-    return searchMatch && categoryMatch && dateMatch && favMatch;
-  });
-  
-  const isFiltering = selectedDate || searchQuery !== "" || selectedCategory !== "all" || showOnlyFavorites;
-  const featuredEvent = events.find(e => e.isFeatured);
-  
-  if (!isFiltering && featuredEvent && featuredSection) {
-    featuredSection.classList.remove("hidden");
-    featuredSection.innerHTML = `
-      <div class="max-w-7xl mx-auto">
-        <div class="rounded-[24px] sm:rounded-[32px] overflow-hidden relative h-[250px] xs:h-[300px] sm:h-[380px] bg-cover bg-center border-2 sm:border-4 shadow-xl group transition-all duration-500 border-white/10"
-          style="background-image: url('${featuredEvent.imageUrl}')"
-        >
-          <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-[#0a1428]/40 to-transparent z-10"></div>
-          
-          <div class="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-6 sm:right-6 z-20 text-left">
-            <span class="px-2 py-0.5 sm:px-3 sm:py-1 bg-amber-400 text-blue-950 text-[8px] sm:text-[10px] font-black uppercase tracking-widest rounded-full mb-1.5 sm:mb-2.5 inline-block shadow">
-              ★ DESTAQUE DO PORTAL
-            </span>
-            
-            <h2 class="text-sm xs:text-base sm:text-3xl font-black font-display text-white mb-1 sm:mb-2 max-w-2xl leading-tight">
-              ${featuredEvent.title}
-            </h2>
-            
-            <p class="hidden sm:block text-slate-200/90 text-xs max-w-xl mb-4 leading-relaxed line-clamp-2 font-semibold">
-              ${featuredEvent.description}
-            </p>
-            
-            <div class="flex flex-wrap items-center gap-y-1 gap-x-2 sm:gap-x-4 text-[9px] sm:text-xs font-bold text-white mb-2 sm:mb-4">
-              <span class="flex items-center gap-1 bg-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                <i data-lucide="calendar" class="w-3 sm:w-3.5 h-3 sm:h-3.5 text-blue-300"></i> 
-                ${featuredEvent.date.split("-").reverse().join("/")}
-              </span>
-              <span class="flex items-center gap-1 bg-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                <i data-lucide="clock" class="w-3 sm:w-3.5 h-3 sm:h-3.5 text-blue-300"></i> 
-                ${featuredEvent.time}
-              </span>
-              <span class="flex items-center gap-1 bg-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                <i data-lucide="map-pin" class="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-300"></i> 
-                ${featuredEvent.location}
-              </span>
-            </div>
-
-            <div class="pt-0.5 flex flex-wrap gap-1.5 sm:gap-2.5">
-              ${featuredEvent.isPaid ? `
-                <a href="${featuredEvent.ticketLink || '#'}" target="_blank" class="bg-blue-500 hover:bg-blue-600 text-white font-black text-[9px] sm:text-xs px-3 py-1.5 sm:px-5 sm:py-3 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 transition-all active:scale-95 cursor-pointer">
-                  <i data-lucide="ticket" class="w-3 h-3 sm:w-4 sm:h-4"></i>
-                  <span>Ingressos (${featuredEvent.ticketPrice || 'R$ 0,00'})</span>
-                  <i data-lucide="external-link" class="w-3 h-3 stroke-[3]"></i>
-                </a>
-              ` : `
-                <span class="bg-emerald-500 text-white font-black text-[9px] sm:text-xs px-3 py-1.5 sm:px-5 sm:py-3 rounded-full flex items-center gap-1 shadow">
-                  <span>Gratuito</span>
-                </span>
-              `}
-              
-              <button onclick="scrollToEvent('event-card-${featuredEvent.id}')" class="bg-white/15 hover:bg-white/25 text-white font-bold text-[9px] sm:text-xs px-3 py-1.5 sm:px-5 sm:py-3 rounded-full border border-white/20 transition-all flex items-center gap-1 cursor-pointer">
-                Ver no Feed <i data-lucide="chevron-right" class="w-3 h-3 sm:w-4 sm:h-4"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  } else if (featuredSection) {
-    featuredSection.classList.add("hidden");
-  }
-  
-  eventsContainer.innerHTML = "";
-  
-  if (filtered.length === 0) {
-    eventsContainer.innerHTML = `
-      <div class="col-span-full py-16 px-4 text-center space-y-4">
-        <div class="w-16 h-16 bg-blue-500/10 border border-blue-500/10 rounded-full flex items-center justify-center text-blue-400 mx-auto">
-          <i data-lucide="calendar" class="w-8 h-8"></i>
-        </div>
-        <div class="space-y-1">
-          <h3 class="text-lg font-bold">Nenhum evento encontrado</h3>
-          <p class="text-xs text-slate-400 max-w-sm mx-auto">Tente alterar os filtros de categoria, data ou digite outros termos de busca.</p>
-        </div>
-        <button onclick="clearAllFilters()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-full transition-all cursor-pointer">
-          Limpar Filtros
-        </button>
-      </div>
-    `;
-    if (window.lucide) window.lucide.createIcons();
-    return;
-  }
-  
-  filtered.forEach(event => {
-    const isFav = favorites.includes(event.id);
-    const categoryInfo = CATEGORY_MAP[event.category] || CATEGORY_MAP.all;
-    const isOwner = currentUser && event.organizer === currentUser.name;
-    
-    const card = document.createElement("article");
-    card.id = `event-card-${event.id}`;
-    card.className = `border-2 rounded-[20px] sm:rounded-[28px] overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col group h-full relative text-left
-      ${theme === "dark" 
-        ? event.isPaid ? "bg-[#0e172e] border-blue-500/30" : "bg-[#0e162a] border-white/5"
-        : event.isPaid ? "bg-white border-blue-400 shadow-md" : "bg-white border-slate-200/80"}`;
-        
-    card.innerHTML = `
-      <div class="relative h-40 sm:h-48 w-full overflow-hidden shrink-0 border-b border-white/5">
-        <img
-          src="${event.imageUrl}"
-          alt="${event.title}"
-          class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
-          loading="lazy"
-          onerror="this.src='https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&auto=format&fit=crop&q=60'"
-        />
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent"></div>
-        
-        <span class="absolute top-4 left-4 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow border backdrop-blur-md bg-slate-900/80 text-white border-white/10">
-          ${categoryInfo.label}
-        </span>
-        
-        <div class="absolute top-4 right-4 flex items-center gap-2">
-          ${isOwner ? `
-            <button onclick="deleteEvent('${event.id}')" class="p-2 bg-red-600/90 hover:bg-red-700 text-white rounded-full shadow-lg cursor-pointer backdrop-blur-sm active:scale-90 transition-all" title="Excluir Evento">
-              <i data-lucide="trash" class="w-3.5 h-3.5"></i>
-            </button>
-          ` : ''}
-          
-          <button onclick="toggleFavorite('${event.id}')" class="p-2 rounded-full shadow-lg cursor-pointer backdrop-blur-sm bg-slate-900/85 hover:bg-slate-950 text-white border border-white/10 active:scale-90 transition-all">
-            <i data-lucide="heart" class="w-3.5 h-3.5 ${isFav ? 'fill-red-500 text-red-500' : 'text-white'}"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between">
-        <div class="space-y-2">
-          <h3 class="text-base font-extrabold tracking-tight leading-snug font-display line-clamp-2 hover:text-blue-400 transition-colors
-            ${theme === "dark" ? "text-white" : "text-slate-900"}"
-          >
-            ${event.title}
-          </h3>
-          
-          <p class="text-xs font-medium leading-relaxed line-clamp-3
-            ${theme === "dark" ? "text-slate-400" : "text-slate-500"}"
-          >
-            ${event.description}
-          </p>
-        </div>
-
-        <div class="mt-4 pt-4 border-t space-y-3 shrink-0 ${theme === 'dark' ? 'border-white/5' : 'border-slate-100'}">
-          <div class="grid grid-cols-2 gap-2 text-[11px] font-bold">
-            <span class="flex items-center gap-1.5 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-400"></i>
-              ${event.date.split("-").reverse().join("/")}
-            </span>
-            <span class="flex items-center gap-1.5 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}">
-              <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-400"></i>
-              ${event.time}
-            </span>
-          </div>
-
-          <span class="flex items-center gap-1.5 text-[11px] font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'} truncate">
-            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
-            <span class="truncate">${event.location}</span>
-          </span>
-
-          <div class="flex items-center justify-between gap-2 pt-1">
-            <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate max-w-[120px]" title="Organizador">
-              By: ${event.organizer}
-            </span>
-            
-            <div>
-              ${event.isPaid ? `
-                <a href="${event.ticketLink || '#'}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-full text-[10px] font-extrabold shadow flex items-center gap-1 cursor-pointer transition-all">
-                  <i data-lucide="ticket" class="w-3 h-3"></i>
-                  <span>Ingressos (${event.ticketPrice || 'R$ 0,00'})</span>
-                </a>
-              ` : `
-                <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
-                  Gratuito
-                </span>
-              `}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    eventsContainer.appendChild(card);
-  });
-  
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
-
-function toggleFavorite(eventId) {
-  const idx = favorites.indexOf(eventId);
-  if (idx > -1) {
-    favorites.splice(idx, 1);
-  } else {
-    favorites.push(eventId);
-  }
-  localStorage.setItem("alagoinhas_favorites", JSON.stringify(favorites));
-  renderEvents();
-}
-
-function deleteEvent(eventId) {
-  if (confirm("Tem certeza que deseja excluir seu evento anunciado?")) {
-    events = events.filter(e => e.id !== eventId);
-    localStorage.setItem("alagoinhas_events", JSON.stringify(events));
-    renderEvents();
-    renderCalendar();
-    updateFiltersDisplay();
-  }
-}
-
-function scrollToEvent(elementId) {
-  const el = document.getElementById(elementId);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-function setupEventListeners() {
-  const themeBtn = document.getElementById("theme-toggle-btn");
-  if (themeBtn) {
-    themeBtn.onclick = () => {
-      theme = theme === "dark" ? "light" : "dark";
-      localStorage.setItem("alagoinhas_theme", theme);
-      applyTheme();
-      renderEvents();
-      renderCalendar();
-    };
-  }
-  
-  const sidebarBtn = document.getElementById("btn-menu-sidebar");
-  const sidebarEl = document.getElementById("app-sidebar");
-  const sidebarOverlay = document.getElementById("sidebar-overlay");
-  
-  if (sidebarBtn && sidebarEl && sidebarOverlay) {
-    const toggleSidebar = () => {
-      sidebarOpen = !sidebarOpen;
-      if (sidebarOpen) {
-        sidebarEl.classList.remove("-translate-x-full");
-        sidebarOverlay.classList.remove("hidden", "opacity-0");
-        sidebarOverlay.classList.add("opacity-100");
-      } else {
-        sidebarEl.classList.add("-translate-x-full");
-        sidebarOverlay.classList.remove("opacity-100");
-        sidebarOverlay.classList.add("opacity-0");
-        setTimeout(() => {
-          if (!sidebarOpen) sidebarOverlay.classList.add("hidden");
-        }, 300);
-      }
-    };
-    
-    sidebarBtn.onclick = toggleSidebar;
-    sidebarOverlay.onclick = toggleSidebar;
-    
-    const sidebarClose = document.getElementById("sidebar-close-btn");
-    if (sidebarClose) sidebarClose.onclick = toggleSidebar;
-  }
-  
-  const searchInput = document.getElementById("search-input");
-  const clearSearchBtn = document.getElementById("clear-search-btn");
-  
-  if (searchInput) {
-    searchInput.oninput = (e) => {
-      searchQuery = e.target.value;
-      renderEvents();
-      updateFiltersDisplay();
-      if (clearSearchBtn) {
-        if (searchQuery !== "") {
-          clearSearchBtn.classList.remove("hidden");
-        } else {
-          clearSearchBtn.classList.add("hidden");
-        }
-      }
-    };
-  }
-  
-  if (clearSearchBtn) {
-    clearSearchBtn.onclick = () => {
-      searchQuery = "";
-      if (searchInput) searchInput.value = "";
-      clearSearchBtn.classList.add("hidden");
-      renderEvents();
-      updateFiltersDisplay();
-    };
-  }
-  
-  const categoryContainer = document.getElementById("category-filters-pills");
-  if (categoryContainer) {
-    categoryContainer.innerHTML = "";
-    Object.keys(CATEGORY_MAP).forEach(catKey => {
-      const cat = CATEGORY_MAP[catKey];
-      const pill = document.createElement("button");
-      pill.className = `px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border select-none active:scale-95`;
-      pill.id = `btn-category-tab-${catKey}`;
-      pill.textContent = cat.label;
-      pill.onclick = () => selectCategoryFilter(catKey);
-      categoryContainer.appendChild(pill);
-    });
-    updateCategoryPillState();
-  }
-  
-  const eventFormEl = document.getElementById("add-event-form");
-  if (eventFormEl) {
-    eventFormEl.onsubmit = handleAddEventSubmit;
-  }
-  
-  const isPaidCheckbox = document.getElementById("form-is-paid");
-  const paidFields = document.getElementById("form-paid-fields");
-  if (isPaidCheckbox && paidFields) {
-    isPaidCheckbox.onchange = (e) => {
-      if (e.target.checked) {
-        paidFields.classList.remove("hidden");
-      } else {
-        paidFields.classList.add("hidden");
-      }
-    };
-  }
-}
-
-function selectCategoryFilter(catKey) {
-  selectedCategory = catKey;
-  updateCategoryPillState();
-  renderEvents();
-  updateFiltersDisplay();
-}
-
-function updateCategoryPillState() {
-  Object.keys(CATEGORY_MAP).forEach(catKey => {
-    const pill = document.getElementById(`btn-category-tab-${catKey}`);
-    if (!pill) return;
-    
-    const isActive = selectedCategory === catKey;
-    if (isActive) {
-      pill.className = "px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border select-none active:scale-95 bg-blue-600 text-white border-blue-600 shadow-md scale-[1.02]";
-    } else {
-      if (theme === "dark") {
-        pill.className = "px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border select-none active:scale-95 bg-[#0e162a] text-slate-300 border-white/5 hover:bg-white/5 hover:text-white";
-      } else {
-        pill.className = "px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer border select-none active:scale-95 bg-white text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-900";
-      }
-    }
-  });
-}
-
-function toggleFavoriteFilter(checkbox) {
-  showOnlyFavorites = checkbox.checked;
-  renderEvents();
-  updateFiltersDisplay();
-}
-
-function updateFiltersDisplay() {
-  const container = document.getElementById("active-filters-bar");
-  const pillsList = document.getElementById("active-filters-list");
-  if (!container || !pillsList) return;
-  
-  const hasActiveFilters = selectedDate || selectedCategory !== "all" || searchQuery !== "" || showOnlyFavorites;
-  
-  if (!hasActiveFilters) {
-    container.classList.add("hidden");
-    pillsList.innerHTML = "";
-    return;
-  }
-  
-  container.classList.remove("hidden");
-  pillsList.innerHTML = "";
-  
-  if (selectedDate) {
-    const formatted = selectedDate.split("-").reverse().join("/");
-    pillsList.appendChild(createFilterBadge(`Data: ${formatted}`, () => {
-      selectedDate = null;
-      renderCalendar();
-      renderEvents();
-      updateFiltersDisplay();
-    }));
-  }
-  
-  if (selectedCategory !== "all") {
-    const label = CATEGORY_MAP[selectedCategory]?.label || selectedCategory;
-    pillsList.appendChild(createFilterBadge(`Categoria: ${label}`, () => {
-      selectedCategory = "all";
-      updateCategoryPillState();
-      renderEvents();
-      updateFiltersDisplay();
-    }));
-  }
-  
-  if (searchQuery !== "") {
-    pillsList.appendChild(createFilterBadge(`Busca: "${searchQuery}"`, () => {
-      searchQuery = "";
-      const input = document.getElementById("search-input");
-      if (input) input.value = "";
-      const btn = document.getElementById("clear-search-btn");
-      if (btn) btn.classList.add("hidden");
-      renderEvents();
-      updateFiltersDisplay();
-    }));
-  }
-  
-  if (showOnlyFavorites) {
-    pillsList.appendChild(createFilterBadge("Apenas Favoritos", () => {
-      showOnlyFavorites = false;
-      const chkSidebar = document.getElementById("fav-only-checkbox");
-      if (chkSidebar) chkSidebar.checked = false;
-      renderEvents();
-      updateFiltersDisplay();
-    }));
-  }
-}
-
-function createFilterBadge(text, onClear) {
-  const badge = document.createElement("div");
-  badge.className = "flex items-center gap-1.5 px-3 py-1 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-bold text-blue-400";
-  badge.innerHTML = `
-    <span>${text}</span>
-    <button class="hover:text-white transition-colors cursor-pointer text-slate-400 font-bold text-[10px]" onclick="(${onClear.toString()})()">×</button>
-  `;
-  return badge;
-}
-
-function clearAllFilters() {
-  selectedDate = null;
-  selectedCategory = "all";
-  searchQuery = "";
-  showOnlyFavorites = false;
-  
-  const sInput = document.getElementById("search-input");
-  if (sInput) sInput.value = "";
-  
-  const clearSBtn = document.getElementById("clear-search-btn");
-  if (clearSBtn) clearSBtn.classList.add("hidden");
-  
-  const chkSidebar = document.getElementById("fav-only-checkbox");
-  if (chkSidebar) chkSidebar.checked = false;
-  
-  updateCategoryPillState();
-  renderCalendar();
-  renderEvents();
-  updateFiltersDisplay();
-}
-
-function handleAddEventSubmit(e) {
-  e.preventDefault();
-  
-  const title = document.getElementById("form-title").value;
-  const description = document.getElementById("form-desc").value;
-  const category = document.getElementById("form-cat").value;
-  const date = document.getElementById("form-date").value;
-  const time = document.getElementById("form-time").value;
-  const location = document.getElementById("form-location").value;
-  const imageUrlInput = document.getElementById("form-img").value;
-  const isPaid = document.getElementById("form-is-paid").checked;
-  const ticketPrice = document.getElementById("form-price").value;
-  const ticketLink = document.getElementById("form-ticket-link").value;
-  
-  if (!currentUser) {
-    alert("Por favor, faça login ou identifique-se clicando em 'Entrar' no topo para poder anunciar eventos!");
-    closeAddEventModal();
-    openLoginModal();
-    return;
-  }
-  
-  const defaultImage = "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&auto=format&fit=crop&q=60";
-  const finalImageUrl = imageUrlInput.trim() !== "" ? imageUrlInput : defaultImage;
-  
-  const newEvent = {
-    id: String(Date.now()),
-    title,
-    description,
-    category,
-    date,
-    time,
-    location,
-    imageUrl: finalImageUrl,
-    organizer: currentUser.name,
-    isFeatured: false,
-    createdTimestamp: Date.now(),
-    isPaid,
-    ticketPrice: isPaid ? ticketPrice : undefined,
-    ticketLink: isPaid ? ticketLink : undefined
-  };
-  
-  events.push(newEvent);
-  localStorage.setItem("alagoinhas_events", JSON.stringify(events));
-  
-  playChime();
-  closeAddEventModal();
-  renderEvents();
-  renderCalendar();
-  updateFiltersDisplay();
-  
-  showToastNotification(`Seu evento "${title}" foi anunciado com sucesso no portal!`);
-  
-  document.getElementById("add-event-form").reset();
-  document.getElementById("form-paid-fields").classList.add("hidden");
-}
-
-function showToastNotification(msg) {
-  const toast = document.createElement("div");
-  toast.className = "fixed bottom-5 right-5 z-50 p-4 rounded-2xl bg-slate-900 border border-emerald-500/30 text-white shadow-2xl animate-fade-in max-w-sm flex items-center gap-3";
-  toast.innerHTML = `
-    <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-      <i data-lucide="check" class="w-4.5 h-4.5"></i>
-    </div>
-    <div>
-      <h4 class="text-xs font-black uppercase text-emerald-400">Portal de Eventos</h4>
-      <p class="text-[11px] text-slate-300 font-semibold mt-0.5 leading-snug">${msg}</p>
-    </div>
-  `;
-  document.body.appendChild(toast);
-  if (window.lucide) window.lucide.createIcons();
-  
-  setTimeout(() => {
-    toast.classList.add("opacity-0", "translate-y-2", "transition-all", "duration-300");
-    setTimeout(() => toast.remove(), 350);
-  }, 4500);
-}
-
-let selectedAvatarIdx = 0;
-function selectAvatarChoice(idx) {
-  selectedAvatarIdx = idx;
-  AVATAR_PRESETS.forEach((p, i) => {
-    const card = document.getElementById(`avatar-choice-${i}`);
-    if (!card) return;
-    if (i === idx) {
-      card.className = "p-3 border-2 rounded-2xl flex flex-col items-center justify-center gap-1 bg-blue-500/10 border-blue-500 active:scale-95 transition-all scale-102 shadow-lg";
-    } else {
-      card.className = "p-3 border rounded-2xl flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 cursor-pointer border-white/10 active:scale-95 transition-all";
-    }
-  });
-}
-
-function handleLoginSubmit() {
-  const nameInput = document.getElementById("login-username-field").value;
-  if (!nameInput.trim()) {
-    alert("Por favor, digite seu nome ou alcunha regional!");
-    return;
-  }
-  
-  currentUser = {
-    name: nameInput,
-    avatarIdx: selectedAvatarIdx
-  };
-  
-  localStorage.setItem("alagoinhas_user", JSON.stringify(currentUser));
-  renderHeaderUser();
-  renderEvents();
-  closeLoginModal();
-  showToastNotification(`Bem-vindo, ${currentUser.name}! Pronto para anunciar eventos locais.`);
-}
-
-function handleLogout() {
-  if (confirm("Deseja desconectar sua conta local?")) {
+document.getElementById('logout-button').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
     currentUser = null;
-    localStorage.removeItem("alagoinhas_user");
-    renderHeaderUser();
-    renderEvents();
-    closeLoginModal();
-  }
-}
+    currentProfile = null;
+    isAdmin = false;
+    updateAuthUI();
+});
 
-function openAddEventModal() {
-  if (!currentUser) {
-    alert("Identifique-se primeiro para poder anunciar eventos!");
-    openLoginModal();
-    return;
-  }
-  document.getElementById("modal-add-event").classList.remove("hidden");
-}
+document.getElementById('user-button').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('user-dropdown').classList.toggle('hidden');
+});
 
-function closeAddEventModal() {
-  document.getElementById("modal-add-event").classList.add("hidden");
-}
+document.addEventListener('click', () => {
+    document.getElementById('user-dropdown').classList.add('hidden');
+});
 
-function openSettingsModal() {
-  document.getElementById("modal-settings").classList.remove("hidden");
-}
+document.getElementById('login-button').addEventListener('click', openAuthModal);
 
-function closeSettingsModal() {
-  document.getElementById("modal-settings").classList.add("hidden");
-}
-
-function openLoginModal() {
-  const modal = document.getElementById("modal-login");
-  modal.classList.remove("hidden");
-  
-  const loginBody = document.getElementById("login-box-body");
-  const loggedBody = document.getElementById("logged-box-body");
-  
-  if (currentUser) {
-    loginBody.classList.add("hidden");
-    loggedBody.classList.remove("hidden");
-    
-    const avatarContainer = document.getElementById("logged-user-avatar-container");
-    const avatarEmoji = document.getElementById("logged-user-avatar-emoji");
-    
-    if (avatarContainer && avatarEmoji) {
-      avatarContainer.className = `w-20 h-20 rounded-full border-2 flex items-center justify-center text-3xl shadow-xl overflow-hidden ${AVATAR_PRESETS[currentUser.avatarIdx]?.class}`;
-      avatarEmoji.textContent = AVATAR_PRESETS[currentUser.avatarIdx]?.icon;
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN') {
+        currentUser = session.user;
+        await loadProfile();
+        await checkAdminStatus();
+        updateAuthUI();
+    } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        currentProfile = null;
+        isAdmin = false;
+        updateAuthUI();
     }
+});
+
+/* ============================================
+   EDIÇÃO DE PERFIL
+   ============================================ */
+function openProfileModal() {
+    const modal = document.getElementById('profile-modal');
+    const nameInput = document.getElementById('profile-name');
+    const avatarInput = document.getElementById('profile-avatar');
+    const preview = document.getElementById('profile-preview');
+    const icon = document.getElementById('profile-icon');
     
-    document.getElementById("logged-user-name").textContent = currentUser.name;
-    document.getElementById("logged-user-title").textContent = AVATAR_PRESETS[currentUser.avatarIdx]?.name;
-  } else {
-    loginBody.classList.remove("hidden");
-    loggedBody.classList.add("hidden");
-    selectAvatarChoice(0);
-  }
+    if (currentProfile) {
+        nameInput.value = currentProfile.full_name || '';
+        avatarInput.value = currentProfile.avatar_url || '';
+        if (currentProfile.avatar_url) {
+            preview.src = currentProfile.avatar_url;
+            preview.classList.remove('hidden');
+            icon.classList.add('hidden');
+        } else {
+            preview.classList.add('hidden');
+            icon.classList.remove('hidden');
+        }
+    }
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    if (window.lucide) lucide.createIcons();
+}
+window.openProfileModal = openProfileModal;
+
+function closeProfileModal() {
+    const modal = document.getElementById('profile-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    document.getElementById('profile-form').reset();
+    document.getElementById('profile-message').classList.add('hidden');
+}
+window.closeProfileModal = closeProfileModal;
+
+document.getElementById('profile-avatar').addEventListener('input', (e) => {
+    const url = e.target.value;
+    const preview = document.getElementById('profile-preview');
+    const icon = document.getElementById('profile-icon');
+    if (url) {
+        preview.src = url;
+        preview.classList.remove('hidden');
+        icon.classList.add('hidden');
+    } else {
+        preview.classList.add('hidden');
+        icon.classList.remove('hidden');
+    }
+});
+
+function showProfileMessage(message, type) {
+    const msgEl = document.getElementById('profile-message');
+    msgEl.textContent = message;
+    msgEl.className = `text-sm font-semibold p-3 rounded-xl ${
+        type === 'error' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+    }`;
+    msgEl.classList.remove('hidden');
 }
 
-function closeLoginModal() {
-  document.getElementById("modal-login").classList.add("hidden");
-}
+document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fullName = document.getElementById('profile-name').value.trim();
+    const avatarUrl = document.getElementById('profile-avatar').value.trim();
+    const submitBtn = document.getElementById('profile-submit');
 
-function clearAllLocalStorage() {
-  if (confirm("Isso apagará todas as suas preferências, eventos cadastrados e curtidas locais. Deseja prosseguir?")) {
-    localStorage.clear();
-    location.reload();
-  }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline-block"></i> Salvando...';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        const { error } = await supabaseClient.from('profiles').update({ full_name: fullName, avatar_url: avatarUrl || null }).eq('id', currentUser.id);
+        if (error) throw error;
+        showProfileMessage('Perfil atualizado com sucesso!', 'success');
+        await loadProfile();
+        updateAuthUI();
+        setTimeout(() => { closeProfileModal(); }, 1500);
+    } catch (error) {
+        console.error('Profile update error:', error);
+        showProfileMessage(error.message || 'Erro ao atualizar perfil.', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Salvar Alterações';
+    }
+});
+
+document.getElementById('edit-profile-button').addEventListener('click', () => {
+    document.getElementById('user-dropdown').classList.add('hidden');
+    openProfileModal();
+});
+
+/* ============================================
+   EVENT LISTENERS
+   ============================================ */
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search');
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+
+    const categoryDrawerBtn = document.getElementById('category-drawer-btn');
+    if (categoryDrawerBtn) categoryDrawerBtn.addEventListener('click', openCategoryDrawer);
+
+    const closeCategoryBtn = document.getElementById('close-category');
+    if (closeCategoryBtn) closeCategoryBtn.addEventListener('click', closeCategoryDrawer);
+
+    const categoryBackdrop = document.getElementById('category-backdrop');
+    if (categoryBackdrop) categoryBackdrop.addEventListener('click', closeCategoryDrawer);
+
+    const clearCategoryBtn = document.getElementById('clear-category');
+    if (clearCategoryBtn) {
+        clearCategoryBtn.addEventListener('click', () => {
+            activeCategory = 'all';
+            updateCategoryUI();
+            applyFilters();
+        });
+    }
+
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    if (modalBackdrop) modalBackdrop.addEventListener('click', closeModal);
+
+    const closeModalBtn = document.getElementById('close-modal');
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeModal();
+            closeCategoryDrawer();
+            closeAuthModal();
+            closeProfileModal();
+        }
+    });
+
+    renderCategoryList();
+    updateCategoryUI();
+    loadEvents();
+    checkAuth();
+});
+
+function applyFilters() {
+    const searchInput = document.getElementById('search');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
+    let filtered = allEvents.filter(ev =>
+        ev.name.toLowerCase().includes(search) ||
+        (ev.description && ev.description.toLowerCase().includes(search))
+    );
+    if (activeCategory !== 'all') {
+        filtered = filtered.filter(ev => ev.category === activeCategory);
+    }
+    renderEvents(filtered);
 }

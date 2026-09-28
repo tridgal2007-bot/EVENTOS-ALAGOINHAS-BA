@@ -1,683 +1,605 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Alagoinhas Eventos - A Capital do Forró e da Cultura</title>
-    
-    <!-- Fonts -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eventos em Alagoinhas - BA</title>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              alagoinhas: {
-                blue: '#0066CC',
-                yellow: '#FFD700',
-                green: '#00A650',
-                dark: '#0a0e27',
-                darker: '#050811'
-              }
-            },
-            fontFamily: {
-              sans: ['Outfit', 'sans-serif'],
-              display: ['Space Grotesk', 'sans-serif'],
-            },
-            animation: {
-              'float': 'float 6s ease-in-out infinite',
-              'float-delayed': 'float 6s ease-in-out 3s infinite',
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'spin-slow': 'spin 8s linear infinite',
-              'bounce-slow': 'bounce 3s infinite',
-              'shimmer': 'shimmer 2s linear infinite',
-              'glow': 'glow 2s ease-in-out infinite alternate',
-            },
-            keyframes: {
-              float: {
-                '0%, 100%': { transform: 'translateY(0px)' },
-                '50%': { transform: 'translateY(-20px)' },
-              },
-              shimmer: {
-                '0%': { backgroundPosition: '-1000px 0' },
-                '100%': { backgroundPosition: '1000px 0' },
-              },
-              glow: {
-                '0%': { boxShadow: '0 0 20px rgba(0, 102, 204, 0.5)' },
-                '100%': { boxShadow: '0 0 40px rgba(0, 102, 204, 0.8), 0 0 60px rgba(0, 102, 204, 0.4)' },
-              }
-            }
-          }
-        }
-      }
-    </script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- Three.js para elementos 3D -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
-    <style>
-      /* Custom Styles & 3D Effects */
-      body {
-        overflow-x: hidden;
-        background: #050811;
-      }
-      
-      .gradient-text {
-        background: linear-gradient(135deg, #0066CC 0%, #FFD700 50%, #00A650 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-      
-      .glass-effect {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      
-      .glass-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-      }
-      
-      .card-3d {
-        transform-style: preserve-3d;
-        transition: transform 0.5s ease;
-      }
-      
-      .card-3d:hover {
-        transform: rotateY(10deg) rotateX(5deg) translateZ(20px);
-      }
-      
-      .floating-shape {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.4;
-        animation: float 10s ease-in-out infinite;
-      }
-      
-      /* Loader Styles */
-      .loader-container {
-        position: fixed;
-        inset: 0;
-        background: linear-gradient(135deg, #050811 0%, #0a0e27 50%, #001a33 100%);
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-      }
-      
-      .loader-cube {
-        width: 80px;
-        height: 80px;
-        position: relative;
-        transform-style: preserve-3d;
-        animation: rotateCube 3s infinite ease-in-out;
-      }
-      
-      .loader-face {
-        position: absolute;
-        width: 80px;
-        height: 80px;
-        background: linear-gradient(135deg, #0066CC, #FFD700);
-        opacity: 0.8;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-      }
-      
-      .loader-face:nth-child(1) { transform: rotateY(0deg) translateZ(40px); }
-      .loader-face:nth-child(2) { transform: rotateY(90deg) translateZ(40px); }
-      .loader-face:nth-child(3) { transform: rotateY(180deg) translateZ(40px); }
-      .loader-face:nth-child(4) { transform: rotateY(-90deg) translateZ(40px); }
-      .loader-face:nth-child(5) { transform: rotateX(90deg) translateZ(40px); }
-      .loader-face:nth-child(6) { transform: rotateX(-90deg) translateZ(40px); }
-      
-      @keyframes rotateCube {
-        0% { transform: rotateX(0deg) rotateY(0deg); }
-        100% { transform: rotateX(360deg) rotateY(360deg); }
-      }
-      
-      .loader-progress {
-        width: 300px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 2px;
-        margin-top: 40px;
-        overflow: hidden;
-        position: relative;
-      }
-      
-      .loader-progress-bar {
-        height: 100%;
-        background: linear-gradient(90deg, #0066CC, #FFD700, #00A650);
-        background-size: 200% 100%;
-        animation: shimmer 2s linear infinite;
-        border-radius: 2px;
-        transition: width 0.3s ease;
-      }
-      
-      .particle {
-        position: absolute;
-        width: 4px;
-        height: 4px;
-        background: #FFD700;
-        border-radius: 50%;
-        animation: particleFloat 15s infinite;
-      }
-      
-      @keyframes particleFloat {
-        0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
-      }
-      
-      /* 3D Background Elements */
-      .bg-3d-container {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 0;
-        overflow: hidden;
-      }
-      
-      .sphere-3d {
-        position: absolute;
-        border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, rgba(0, 102, 204, 0.4), rgba(0, 102, 204, 0.1));
-        box-shadow: 0 0 100px rgba(0, 102, 204, 0.3);
-        animation: float 20s ease-in-out infinite;
-      }
-      
-      .sphere-3d:nth-child(2) {
-        background: radial-gradient(circle at 30% 30%, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.05));
-        animation-delay: -5s;
-      }
-      
-      .sphere-3d:nth-child(3) {
-        background: radial-gradient(circle at 30% 30%, rgba(0, 166, 80, 0.3), rgba(0, 166, 80, 0.05));
-        animation-delay: -10s;
-      }
-      
-      /* Event Card Hover Effects */
-      .event-card {
-        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        transform-style: preserve-3d;
-      }
-      
-      .event-card:hover {
-        transform: translateY(-10px) rotateX(5deg) rotateY(5deg);
-        box-shadow: 0 30px 60px rgba(0, 102, 204, 0.3);
-      }
-      
-      .event-card::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(0, 102, 204, 0.2), transparent);
-        opacity: 0;
-        transition: opacity 0.5s;
-        border-radius: inherit;
-      }
-      
-      .event-card:hover::before {
-        opacity: 1;
-      }
-      
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 10px;
-      }
-      
-      ::-webkit-scrollbar-track {
-        background: #0a0e27;
-      }
-      
-      ::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, #0066CC, #FFD700);
-        border-radius: 5px;
-      }
-      
-      /* Button Glow Effect */
-      .btn-glow {
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s;
-      }
-      
-      .btn-glow::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-        transform: translateX(-100%);
-        transition: transform 0.6s;
-      }
-      
-      .btn-glow:hover::before {
-        transform: translateX(100%);
-      }
-      
-      /* Text Reveal Animation */
-      .reveal-text {
-        opacity: 0;
-        transform: translateY(30px);
-        animation: revealText 1s ease forwards;
-      }
-      
-      @keyframes revealText {
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      
-      /* City Silhouette */
-      .city-silhouette {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 200px;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%230066CC' fill-opacity='0.1' d='M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
-        background-size: cover;
-        background-position: center bottom;
-      }
-    </style>
-  </head>
-  <body class="antialiased text-white">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- LOADER PROFESSIONAL -->
-    <div id="app-loader" class="loader-container">
-      <!-- Particles -->
-      <div id="particles-container"></div>
-      
-      <!-- 3D Cube Loader -->
-      <div class="loader-cube">
-        <div class="loader-face"></div>
-        <div class="loader-face"></div>
-        <div class="loader-face"></div>
-        <div class="loader-face"></div>
-        <div class="loader-face"></div>
-        <div class="loader-face"></div>
-      </div>
-      
-      <!-- Logo & Text -->
-      <div class="mt-12 text-center z-10">
-        <h1 class="text-4xl md:text-6xl font-black font-display mb-2">
-          <span class="gradient-text">ALAGOINHAS</span>
-        </h1>
-        <p class="text-blue-400 text-lg md:text-xl font-bold tracking-widest uppercase">Eventos</p>
-        <p class="text-slate-400 text-sm mt-4">Carregando a melhor agenda cultural da Bahia</p>
-      </div>
-      
-      <!-- Progress Bar -->
-      <div class="loader-progress">
-        <div id="loader-progress-bar" class="loader-progress-bar" style="width: 0%"></div>
-      </div>
-      <p id="loader-text" class="text-slate-500 text-xs mt-2 font-mono">0%</p>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        alagoinhas: {
+                            50: '#F4F8FD', 100: '#E8F0FA', 200: '#D3E2F4', 300: '#A9C7E9',
+                            400: '#78A9DC', 500: '#3F8BD9', 600: '#2E73BC', 700: '#245C98',
+                            800: '#1D4876', 900: '#132F4F'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Sora', 'sans-serif']
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-15px)' }
+                        }
+                    },
+                    animation: {
+                        float: 'float 9s ease-in-out infinite',
+                        spin: 'spin 1s linear infinite'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+        body {
+            margin: 0;
+            background: #F7F9FC;
+            color: #132F4F;
+            font-family: Inter, sans-serif;
+            transition: background-color .3s ease, color .3s ease;
+        }
+        .dark body { background: #0D121A; color: #F1F5F9; }
+
+        .glass-effect {
+            background: rgba(255,255,255,.88);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(215,227,240,.75);
+        }
+        .dark .glass-effect {
+            background: rgba(13,18,26,.90);
+            border-color: rgba(255,255,255,.07);
+        }
+
+        .glass-card {
+            background: rgba(255,255,255,.96);
+            border: 1px solid #E1EAF3;
+            box-shadow: 0 8px 30px rgba(19,47,79,.06);
+        }
+        .dark .glass-card {
+            background: #141B26;
+            border-color: rgba(255,255,255,.07);
+            box-shadow: 0 12px 35px rgba(0,0,0,.25);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #3F8BD9, #245C98);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .dark .gradient-text {
+            background: linear-gradient(135deg, #78A9DC, #A9C7E9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-link { position: relative; transition: color .2s ease; }
+        .nav-link::after {
+            content: "";
+            position: absolute;
+            left: 0; bottom: -4px;
+            width: 0; height: 2px;
+            border-radius: 999px;
+            background: #3F8BD9;
+            transition: width .2s ease;
+        }
+        .nav-link:hover::after { width: 100%; }
+
+        .login-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 40px;
+            padding: 0 15px;
+            border-radius: 11px;
+            background: #132F4F;
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+        }
+        .login-button:hover {
+            background: #1D4876;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(19,47,79,.18);
+        }
+
+        #settings-wrapper { position: relative; }
+        #settings-menu {
+            position: absolute;
+            top: calc(100% + 9px);
+            right: 0;
+            width: 225px;
+            padding: 7px;
+            border-radius: 15px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-5px) scale(.98);
+            pointer-events: none;
+            transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
+            z-index: 9999;
+        }
+        #settings-wrapper.open #settings-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .settings-option {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 11px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: #52677C;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: left;
+            transition: background .2s ease, color .2s ease;
+        }
+        .settings-option:hover { background: #F1F5F9; color: #245C98; }
+        .dark .settings-option { color: #CBD5E1; }
+        .dark .settings-option:hover { background: rgba(255,255,255,.06); color: #A9C7E9; }
+
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #E1EAF3;
+            border-radius: 12px;
+            background: white;
+            color: #132F4F;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .google-btn:hover {
+            border-color: #3F8BD9;
+            background: #F4F8FD;
+        }
+        .dark .google-btn {
+            background: #141B26;
+            border-color: rgba(255,255,255,0.1);
+            color: #F1F5F9;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #3F8BD9;
+        }
+
+        .event-title { color: #132F4F; }
+        .dark .event-title { color: #ffffff; }
+        .event-date { color: #245C98; }
+        .dark .event-date { color: #A9C7E9; }
+        .event-desc { color: #52677C; }
+        .dark .event-desc { color: rgba(255,255,255,0.6); }
+
+        /* GAVETA DE CATEGORIAS */
+        #category-drawer {
+            visibility: hidden;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        #category-drawer.open {
+            visibility: visible;
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        #category-drawer.open .drawer-panel {
+            transform: translateX(0);
+        }
+
+        #category-drawer.open .drawer-backdrop {
+            opacity: 1;
+        }
+
+        .drawer-panel {
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .drawer-backdrop {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- LOADING -->
+    <div id="loading-screen" class="fixed inset-0 z-[10000] bg-[#F7F9FC] dark:bg-[#0D121A] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="relative w-20 h-20 mb-6">
+            <div class="absolute inset-0 rounded-full border-4 border-alagoinhas-100 dark:border-alagoinhas-800"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-t-alagoinhas-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <i data-lucide="calendar-days" class="w-7 h-7 text-alagoinhas-500"></i>
+            </div>
+        </div>
+        <h2 class="text-xl font-bold font-display text-alagoinhas-900 dark:text-white">Carregando eventos</h2>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Preparando a agenda...</p>
     </div>
 
-    <!-- 3D BACKGROUND ELEMENTS -->
-    <div class="bg-3d-container">
-      <div class="sphere-3d w-96 h-96 top-20 -left-20"></div>
-      <div class="sphere-3d w-80 h-80 top-40 right-20"></div>
-      <div class="sphere-3d w-64 h-64 bottom-40 left-1/3"></div>
+    <!-- BACKGROUND -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div class="absolute w-[500px] h-[500px] rounded-full bg-alagoinhas-500 opacity-[.07] blur-[120px] -left-40 -top-40 animate-float"></div>
+        <div class="absolute w-[400px] h-[400px] rounded-full bg-alagoinhas-400 opacity-[.05] blur-[120px] right-0 top-40"></div>
     </div>
 
     <!-- HEADER -->
-    <header class="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-white/10">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-20">
-          <!-- Logo -->
-          <div class="flex items-center gap-3 group cursor-pointer">
-            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 via-yellow-500 to-green-600 flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-500 shadow-lg shadow-blue-500/30">
-              <i data-lucide="calendar" class="w-6 h-6 text-white"></i>
-            </div>
-            <div>
-              <h1 class="text-2xl font-black font-display gradient-text">ALAGOINHAS</h1>
-              <p class="text-[10px] text-slate-400 uppercase tracking-widest">Eventos & Cultura</p>
-            </div>
-          </div>
+    <header class="relative z-[500] glass-effect sticky top-0 border-b border-alagoinhas-100 dark:border-white/5">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="h-[74px] flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-alagoinhas-400 to-alagoinhas-600 flex items-center justify-center shadow-md">
+                        <i data-lucide="calendar-days" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold font-display gradient-text tracking-tight">ALAGOINHAS</h1>
+                        <p class="text-[9px] tracking-[.15em] uppercase font-bold text-alagoinhas-700 dark:text-alagoinhas-300">Eventos & Cultura</p>
+                    </div>
+                </div>
 
-          <!-- Navigation -->
-          <nav class="hidden md:flex items-center gap-8">
-            <a href="#" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
-              Início
-              <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-yellow-500 group-hover:w-full transition-all duration-300"></span>
-            </a>
-            <a href="#" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
-              Eventos
-              <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-yellow-500 group-hover:w-full transition-all duration-300"></span>
-            </a>
-            <a href="#" class="text-sm font-semibold text-slate-300 hover:text-white transition-colors relative group">
-              Sobre
-              <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-yellow-500 group-hover:w-full transition-all duration-300"></span>
-            </a>
-          </nav>
+                <nav class="flex items-center gap-2 sm:gap-4">
+                    <a href="index.html" class="nav-link hidden sm:block text-sm font-semibold text-alagoinhas-900/75 dark:text-white/75 py-2">Início</a>
+                    
+                    <a id="admin-link" href="admin.html" class="nav-link hidden sm:block text-sm font-semibold text-alagoinhas-900/75 dark:text-white/75 py-2 hidden">
+                        <i data-lucide="shield" class="w-4 h-4 inline-block mr-1"></i> Admin
+                    </a>
 
-          <!-- Actions -->
-          <div class="flex items-center gap-3">
-            <button onclick="openSettingsModal()" class="p-2.5 rounded-xl glass-effect hover:bg-white/10 transition-all duration-300 group">
-              <i data-lucide="settings" class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:rotate-90 transition-all duration-500"></i>
-            </button>
-            
-            <div id="header-user-container"></div>
-            
-            <button onclick="openAddEventModal()" class="btn-glow hidden sm:flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all duration-300 hover:scale-105">
-              <i data-lucide="plus" class="w-5 h-5"></i>
-              <span>Anunciar</span>
-            </button>
-          </div>
+                    <div id="user-menu" class="hidden relative">
+                        <button id="user-button" type="button" class="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-alagoinhas-50 dark:bg-white/10 hover:bg-alagoinhas-100 dark:hover:bg-white/20 transition-all">
+                            <img id="user-avatar" src="" alt="" class="user-avatar hidden">
+                            <i id="user-avatar-icon" data-lucide="user-circle" class="w-6 h-6 text-alagoinhas-600 dark:text-alagoinhas-300"></i>
+                            <span id="user-name" class="text-sm font-semibold text-alagoinhas-700 dark:text-alagoinhas-200 hidden sm:inline max-w-[120px] truncate"></span>
+                        </button>
+                        
+                        <div id="user-dropdown" class="hidden absolute top-full right-0 mt-2 w-56 glass-card rounded-xl shadow-xl overflow-hidden">
+                            <div class="px-4 py-3 border-b border-slate-200 dark:border-white/10">
+                                <p id="dropdown-name" class="text-sm font-semibold text-alagoinhas-900 dark:text-white truncate"></p>
+                                <p id="dropdown-email" class="text-xs text-slate-500 dark:text-slate-400 truncate"></p>
+                            </div>
+                            <button id="edit-profile-button" class="w-full px-4 py-3 text-left text-sm font-semibold text-alagoinhas-700 dark:text-alagoinhas-200 hover:bg-alagoinhas-50 dark:hover:bg-white/10 flex items-center gap-2 transition-colors">
+                                <i data-lucide="user-cog" class="w-4 h-4"></i>
+                                Editar Perfil
+                            </button>
+                            <button id="logout-button" class="w-full px-4 py-3 text-left text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 transition-colors border-t border-slate-200 dark:border-white/10">
+                                <i data-lucide="log-out" class="w-4 h-4"></i>
+                                Sair
+                            </button>
+                        </div>
+                    </div>
+
+                    <button id="login-button" type="button" class="login-button">
+                        <i data-lucide="log-in" class="w-4 h-4"></i>
+                        <span>Entrar</span>
+                    </button>
+
+                    <div id="settings-wrapper">
+                        <button id="settings-button" type="button" class="w-10 h-10 rounded-xl border border-alagoinhas-100 dark:border-white/10 bg-white/70 dark:bg-white/5 flex items-center justify-center text-alagoinhas-700 dark:text-alagoinhas-300 hover:bg-alagoinhas-50 dark:hover:bg-white/10 transition-all duration-200 cursor-pointer" aria-label="Configurações">
+                            <i data-lucide="settings" class="w-[18px] h-[18px]"></i>
+                        </button>
+
+                        <div id="settings-menu" class="glass-card">
+                            <div class="px-3 pt-2 pb-2">
+                                <p class="text-[10px] uppercase tracking-wider font-bold text-alagoinhas-500">Aparência</p>
+                            </div>
+                            <button id="light-theme" type="button" class="settings-option">
+                                <i data-lucide="sun" class="w-4 h-4"></i>
+                                <span>Modo claro</span>
+                            </button>
+                            <button id="dark-theme" type="button" class="settings-option">
+                                <i data-lucide="moon" class="w-4 h-4"></i>
+                                <span>Modo escuro</span>
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+            </div>
         </div>
-      </div>
     </header>
 
-    <!-- HERO SECTION -->
-    <section class="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-      <div class="max-w-7xl mx-auto">
-        <div class="relative z-10 text-center mb-16">
-          <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-effect mb-6 animate-float">
-            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span class="text-sm font-semibold text-slate-300">Agenda Cultural de Alagoinhas - BA</span>
-          </div>
-          
-          <h2 class="text-5xl md:text-7xl font-black font-display mb-6 leading-tight">
-            <span class="block reveal-text">Descubra os Melhores</span>
-            <span class="block gradient-text reveal-text" style="animation-delay: 0.2s">Eventos da Cidade</span>
-          </h2>
-          
-          <p class="text-xl text-slate-400 max-w-2xl mx-auto mb-10 reveal-text" style="animation-delay: 0.4s">
-            Shows, festas, cultura e muito mais na terra do forró e da alegria. 
-            Sua agenda completa de entretenimento!
-          </p>
+    <!-- HERO -->
+    <section class="relative z-10 pt-20 pb-12 px-4 text-center">
+        <div class="inline-flex items-center gap-2 px-3.5 py-2 rounded-full glass-effect mb-6">
+            <span class="w-1.5 h-1.5 bg-alagoinhas-500 rounded-full"></span>
+            <span class="text-xs sm:text-sm font-semibold text-alagoinhas-700 dark:text-alagoinhas-200">Eventos Alagoinhas - BA</span>
+        </div>
 
-          <!-- Search Bar -->
-          <div class="max-w-2xl mx-auto relative group">
-            <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-yellow-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition-opacity duration-500"></div>
-            <div class="relative flex items-center glass-effect rounded-2xl p-2">
-              <i data-lucide="search" class="w-6 h-6 text-slate-400 ml-4"></i>
-              <input 
-                type="text" 
-                id="search-input"
-                placeholder="Buscar eventos, shows, festas..."
-                class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-white placeholder-slate-500"
-              />
-              <button class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all duration-300">
-                Buscar
-              </button>
+        <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black font-display leading-[1.08] tracking-tight">
+            <span class="block text-alagoinhas-900 dark:text-white">Descubra os Melhores</span>
+            <span class="block gradient-text">Eventos da Cidade</span>
+        </h2>
+
+        <p class="max-w-xl mx-auto mt-5 text-base md:text-lg text-alagoinhas-700/75 dark:text-alagoinhas-300/75 leading-relaxed">
+            Shows, festas, cultura e muito mais.
+        </p>
+    </section>
+
+    <!-- CONTEÚDO -->
+    <main class="relative z-10 flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 w-full">
+        <div class="glass-card rounded-2xl p-3 mb-6 flex flex-col sm:flex-row gap-3 items-center">
+            <div class="relative flex-1 w-full">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 pointer-events-none"></i>
+                <input type="text" id="search" placeholder="Buscar evento..." class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
             </div>
-          </div>
+
+            <button id="category-drawer-btn" type="button" class="relative w-full sm:w-auto flex items-center justify-center gap-2 bg-alagoinhas-500 hover:bg-alagoinhas-600 text-white font-bold rounded-xl px-5 py-3 shadow-md shadow-alagoinhas-500/20 transition-all duration-200 cursor-pointer">
+                <i data-lucide="sliders-horizontal" class="w-[18px] h-[18px]"></i>
+                <span id="category-label">Categorias</span>
+                <span id="category-badge" class="hidden absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-alagoinhas-600 text-[10px] font-black items-center justify-center shadow">1</span>
+            </button>
         </div>
 
-        <!-- Featured Event Banner -->
-        <div id="featured-event-section" class="relative z-10 mb-16"></div>
-      </div>
-      
-      <!-- City Silhouette -->
-      <div class="city-silhouette"></div>
-    </section>
-
-    <!-- CATEGORY FILTERS -->
-    <section class="sticky top-20 z-40 py-4 glass-effect border-y border-white/5">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide" id="category-filters-pills">
-          <!-- Categories injected by JS -->
+        <div id="active-category-pill" class="hidden mb-6 items-center gap-2">
+            <span class="text-sm text-slate-500 dark:text-slate-400">Filtrando por:</span>
+            <span id="active-category-text" class="px-3 py-1.5 rounded-full bg-alagoinhas-100 dark:bg-white/10 text-alagoinhas-700 dark:text-alagoinhas-200 text-xs font-semibold"></span>
+            <button id="clear-category" type="button" class="text-xs text-alagoinhas-500 hover:text-alagoinhas-700 underline underline-offset-2 cursor-pointer">limpar</button>
         </div>
-      </div>
-    </section>
 
-    <!-- MAIN CONTENT -->
-    <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <!-- Events Grid -->
-      <div id="events-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- Events injected by JS -->
-      </div>
-
-      <!-- Empty State -->
-      <div id="empty-state" class="hidden text-center py-20">
-        <div class="w-24 h-24 mx-auto mb-6 rounded-full glass-effect flex items-center justify-center">
-          <i data-lucide="calendar-x" class="w-12 h-12 text-slate-400"></i>
-        </div>
-        <h3 class="text-2xl font-bold mb-2">Nenhum evento encontrado</h3>
-        <p class="text-slate-400 mb-6">Tente ajustar os filtros ou buscar por outros termos</p>
-        <button onclick="clearAllFilters()" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all duration-300">
-          Limpar Filtros
-        </button>
-      </div>
+        <div id="events" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </main>
 
-    <!-- MODALS -->
-    <!-- Add Event Modal -->
-    <div id="modal-add-event" class="fixed inset-0 z-50 hidden">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeAddEventModal()"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="glass-card rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto transform scale-95 opacity-0 transition-all duration-300" id="modal-add-event-content">
-          <div class="flex items-center justify-between mb-8">
-            <div>
-              <h3 class="text-2xl font-bold font-display">Anunciar Evento</h3>
-              <p class="text-slate-400 text-sm">Preencha os dados do seu evento</p>
-            </div>
-            <button onclick="closeAddEventModal()" class="p-2 rounded-xl hover:bg-white/10 transition-colors">
-              <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-          </div>
-          
-          <form id="add-event-form" class="space-y-6">
-            <div class="grid md:grid-cols-2 gap-6">
-              <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-300">Nome do Evento *</label>
-                <input type="text" id="form-title" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Ex: Forró no Coreto">
-              </div>
-              <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-300">Categoria *</label>
-                <select id="form-cat" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
-                  <option value="shows">Shows & Festas</option>
-                  <option value="sports">Esportes</option>
-                  <option value="culture">Cultura</option>
-                  <option value="local_fest">Eventos Locais</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-slate-300">Descrição *</label>
-              <textarea id="form-desc" required rows="3" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Descreva o evento..."></textarea>
-            </div>
-
-            <div class="grid md:grid-cols-2 gap-6">
-              <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-300">Data *</label>
-                <input type="date" id="form-date" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
-              </div>
-              <div class="space-y-2">
-                <label class="text-sm font-semibold text-slate-300">Horário *</label>
-                <input type="time" id="form-time" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors">
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-slate-300">Localização *</label>
-              <input type="text" id="form-location" required class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="Ex: Praça Rui Barbosa">
-            </div>
-
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-slate-300">Imagem (URL)</label>
-              <input type="url" id="form-img" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="https://...">
-            </div>
-
-            <div class="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
-              <input type="checkbox" id="form-is-paid" class="w-5 h-5 rounded border-white/10 bg-white/10">
-              <label for="form-is-paid" class="text-sm font-semibold cursor-pointer">Evento pago</label>
-            </div>
-
-            <div id="form-paid-fields" class="hidden space-y-6">
-              <div class="grid md:grid-cols-2 gap-6">
-                <div class="space-y-2">
-                  <label class="text-sm font-semibold text-slate-300">Preço</label>
-                  <input type="text" id="form-price" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="R$ 0,00">
+    <!-- GAVETA DE CATEGORIAS -->
+    <div id="category-drawer" class="fixed inset-0 z-[9000]">
+        <div class="drawer-backdrop absolute inset-0 bg-[#132F4F]/60 dark:bg-black/70 backdrop-blur-sm" id="category-backdrop"></div>
+        <aside class="drawer-panel absolute top-0 right-0 h-full w-full max-w-sm glass-card !rounded-none sm:!rounded-l-2xl overflow-y-auto shadow-2xl">
+            <div class="sticky top-0 glass-effect px-5 py-4 flex items-center justify-between border-b border-slate-200 dark:border-white/10 z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-alagoinhas-100 dark:bg-alagoinhas-500/10 flex items-center justify-center">
+                        <i data-lucide="tags" class="w-4 h-4 text-alagoinhas-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-alagoinhas-900 dark:text-white">Categorias</h3>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Filtre os eventos</p>
+                    </div>
                 </div>
-                <div class="space-y-2">
-                  <label class="text-sm font-semibold text-slate-300">Link de Compra</label>
-                  <input type="url" id="form-ticket-link" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none transition-colors" placeholder="https://sympla...">
-                </div>
-              </div>
+                <button id="close-category" type="button" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center cursor-pointer transition-all">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-
-            <div class="flex gap-4 pt-4">
-              <button type="button" onclick="closeAddEventModal()" class="flex-1 px-6 py-3 rounded-xl border border-white/10 hover:bg-white/5 font-semibold transition-all">Cancelar</button>
-              <button type="submit" class="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all">Publicar Evento</button>
-            </div>
-          </form>
-        </div>
-      </div>
+            <div id="category-list" class="p-5 flex flex-col gap-2"></div>
+        </aside>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="modal-settings" class="fixed inset-0 z-50 hidden">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="glass-card rounded-3xl p-8 max-w-md w-full transform scale-95 opacity-0 transition-all duration-300" id="modal-settings-content">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-2xl font-bold font-display">Configurações</h3>
-            <button onclick="closeSettingsModal()" class="p-2 rounded-xl hover:bg-white/10 transition-colors">
-              <i data-lucide="x" class="w-6 h-6"></i>
+    <!-- MODAL DE EVENTO -->
+    <div id="modal" class="fixed inset-0 z-[9500] hidden items-center justify-center p-4">
+        <div id="modal-backdrop" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative glass-card rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <button id="close-modal" type="button" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
             </button>
-          </div>
-          
-          <div class="space-y-4">
-            <button id="theme-toggle-btn" class="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all">
-              <div class="flex items-center gap-3">
-                <i data-lucide="palette" class="w-5 h-5 text-blue-400"></i>
-                <span class="font-semibold">Tema</span>
-              </div>
-              <span id="theme-toggle-text" class="text-sm text-slate-400">Escuro</span>
-            </button>
-            
-            <button onclick="clearAllLocalStorage()" class="w-full flex items-center justify-between p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20">
-              <div class="flex items-center gap-3">
-                <i data-lucide="trash-2" class="w-5 h-5"></i>
-                <span class="font-semibold">Limpar Dados</span>
-              </div>
-            </button>
-          </div>
+
+            <div class="relative overflow-hidden rounded-t-2xl">
+                <img id="modal-img" src="" alt="" class="w-full h-64 sm:h-80 object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none"></div>
+                <div id="modal-category" class="hidden absolute top-4 left-4"></div>
+            </div>
+
+            <div class="p-6 sm:p-8">
+                <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-alagoinhas-900 dark:text-white mb-3"></h2>
+                <p id="modal-date" class="flex items-center gap-2 text-alagoinhas-600 dark:text-alagoinhas-400 font-semibold mb-4"></p>
+                <p id="modal-desc" class="text-slate-600 dark:text-slate-300 leading-relaxed mb-8"></p>
+
+                <div class="flex flex-col sm:flex-row gap-4 items-center justify-between pt-6 border-t border-slate-200 dark:border-white/10">
+                    <div id="modal-price" class="text-xl font-bold text-alagoinhas-800 dark:text-white"></div>
+                    <a id="modal-link" href="#" target="_blank" class="hidden w-full sm:w-auto px-7 py-3 bg-alagoinhas-500 hover:bg-alagoinhas-600 text-white font-bold rounded-xl items-center justify-center gap-2 transition-all hover:-translate-y-0.5">
+                        <i data-lucide="ticket" class="w-4 h-4"></i>
+                        Comprar Ingresso
+                    </a>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
 
-    <!-- JavaScript -->
-    <script src="./script.js"></script>
+    <!-- MODAL DE LOGIN -->
+    <div id="auth-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative glass-card rounded-2xl max-w-md w-full shadow-2xl">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <div class="p-8">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-alagoinhas-400 to-alagoinhas-600 flex items-center justify-center">
+                        <i data-lucide="user-circle" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h2 id="auth-title" class="text-2xl font-bold text-alagoinhas-900 dark:text-white">Entrar</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Acesse sua conta ou crie uma nova</p>
+                </div>
+                <form id="auth-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Email</label>
+                        <input type="email" id="auth-email" required placeholder="seu@email.com" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Senha</label>
+                        <input type="password" id="auth-password" required minlength="6" placeholder="••••••••" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+                    </div>
+                    <div id="auth-message" class="hidden text-sm font-semibold p-3 rounded-xl"></div>
+                    <button type="submit" id="auth-submit" class="w-full bg-gradient-to-r from-alagoinhas-500 to-alagoinhas-600 hover:from-alagoinhas-400 hover:to-alagoinhas-500 text-white font-bold rounded-xl py-3 shadow-lg shadow-alagoinhas-500/25 transition-all duration-300 hover:-translate-y-0.5">
+                        Entrar
+                    </button>
+                </form>
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200 dark:border-white/10"></div></div>
+                    <div class="relative flex justify-center text-sm"><span class="px-2 bg-white dark:bg-[#141B26] text-slate-500 dark:text-slate-400">ou continue com</span></div>
+                </div>
+                <button id="google-login" type="button" class="google-btn">
+                    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.64 9.20455C17.64 8.56637 17.5827 7.95273 17.4764 7.36364H9V10.845H13.8436C13.635 11.97 13.0009 12.9232 12.0477 13.5614V15.8195H14.9564C16.6582 14.2527 17.64 11.9455 17.64 9.20455Z" fill="#4285F4"/>
+                        <path d="M9 18C11.43 18 13.4673 17.1941 14.9564 15.8195L12.0477 13.5614C11.2418 14.1014 10.2109 14.4205 9 14.4205C6.65591 14.4205 4.67182 12.8373 3.96409 10.71H0.957273V13.0418C2.43818 15.9523 5.48182 18 9 18Z" fill="#34A853"/>
+                        <path d="M3.96409 10.71C3.78409 10.17 3.68182 9.59318 3.68182 9C3.68182 8.40682 3.78409 7.83 3.96409 7.29V4.95818H0.957273C0.347727 6.17318 0 7.54773 0 9C0 10.4523 0.347727 11.8268 0.957273 13.0418L3.96409 10.71Z" fill="#FBBC05"/>
+                        <path d="M9 3.57955C10.3214 3.57955 11.5077 4.03364 12.4409 4.92545L15.0218 2.34455C13.4632 0.891818 11.4259 0 9 0C5.48182 0 2.43818 2.04773 0.957273 4.95818L3.96409 7.29C4.67182 5.16273 6.65591 3.57955 9 3.57955Z" fill="#EA4335"/>
+                    </svg>
+                    Continuar com Google
+                </button>
+                <div class="mt-6 text-center">
+                    <button id="toggle-auth-mode" type="button" class="text-sm text-alagoinhas-500 hover:text-alagoinhas-700 font-semibold underline underline-offset-2">
+                        Não tem conta? Criar uma
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDIÇÃO DE PERFIL -->
+    <div id="profile-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative glass-card rounded-2xl max-w-md w-full shadow-2xl">
+            <button onclick="closeProfileModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <div class="p-8">
+                <div class="text-center mb-6">
+                    <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-alagoinhas-400 to-alagoinhas-600 flex items-center justify-center overflow-hidden">
+                        <img id="profile-preview" src="" alt="" class="w-full h-full object-cover hidden">
+                        <i id="profile-icon" data-lucide="user" class="w-10 h-10 text-white"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-alagoinhas-900 dark:text-white">Editar Perfil</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Atualize suas informações</p>
+                </div>
+                <form id="profile-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Nome</label>
+                        <input type="text" id="profile-name" required placeholder="Seu nome" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">URL da Foto de Perfil</label>
+                        <input type="url" id="profile-avatar" placeholder="https://..." class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+                    </div>
+                    <div id="profile-message" class="hidden text-sm font-semibold p-3 rounded-xl"></div>
+                    <button type="submit" id="profile-submit" class="w-full bg-gradient-to-r from-alagoinhas-500 to-alagoinhas-600 hover:from-alagoinhas-400 hover:to-alagoinhas-500 text-white font-bold rounded-xl py-3 shadow-lg shadow-alagoinhas-500/25 transition-all duration-300 hover:-translate-y-0.5">
+                        Salvar Alterações
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER ATUALIZADO -->
+    <footer class="relative z-10 border-t border-slate-200 dark:border-white/5 glass-effect mt-auto">
+        <div class="max-w-7xl mx-auto px-4 py-7 text-center">
+            <p class="text-slate-500 dark:text-slate-400 text-xs font-medium">
+                &copy; 2026 Eventos em Alagoinhas. Todos os direitos reservados.
+            </p>
+        </div>
+    </footer>
+
+    <script src="supabase-config.js"></script>
+    <script src="script.js"></script>
+
     <script>
-      // Initialize Lucide Icons
-      lucide.createIcons();
-
-      // Loader Animation
-      function initLoader() {
-        const loader = document.getElementById('app-loader');
-        const progressBar = document.getElementById('loader-progress-bar');
-        const loaderText = document.getElementById('loader-text');
-        
-        let progress = 0;
-        const interval = setInterval(() => {
-          progress += Math.random() * 15;
-          if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            progressBar.style.width = '100%';
-            loaderText.textContent = '100%';
-            
-            setTimeout(() => {
-              loader.style.opacity = '0';
-              loader.style.pointerEvents = 'none';
-              setTimeout(() => loader.remove(), 500);
-            }, 500);
-          } else {
-            progressBar.style.width = progress + '%';
-            loaderText.textContent = Math.floor(progress) + '%';
-          }
-        }, 200);
-      }
-
-      // Create Particles
-      function createParticles() {
-        const container = document.getElementById('particles-container');
-        for (let i = 0; i < 50; i++) {
-          const particle = document.createElement('div');
-          particle.className = 'particle';
-          particle.style.left = Math.random() * 100 + '%';
-          particle.style.animationDelay = Math.random() * 15 + 's';
-          particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
-          container.appendChild(particle);
+        function refreshIcons() {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
         }
-      }
+        refreshIcons();
 
-      // Initialize
-      window.addEventListener('load', () => {
-        createParticles();
-        initLoader();
-      });
+        const html = document.documentElement;
+        const settingsWrapper = document.getElementById('settings-wrapper');
+        const settingsButton = document.getElementById('settings-button');
+        const settingsMenu = document.getElementById('settings-menu');
+        const lightButton = document.getElementById('light-theme');
+        const darkButton = document.getElementById('dark-theme');
 
-      // Modal Animations
-      function openAddEventModal() {
-        const modal = document.getElementById('modal-add-event');
-        const content = document.getElementById('modal-add-event-content');
-        modal.classList.remove('hidden');
-        setTimeout(() => {
-          content.classList.remove('scale-95', 'opacity-0');
-          content.classList.add('scale-100', 'opacity-100');
-        }, 10);
-        lucide.createIcons();
-      }
-
-      function closeAddEventModal() {
-        const modal = document.getElementById('modal-add-event');
-        const content = document.getElementById('modal-add-event-content');
-        content.classList.remove('scale-100', 'opacity-100');
-        content.classList.add('scale-95', 'opacity-0');
-        setTimeout(() => modal.classList.add('hidden'), 300);
-      }
-
-      function openSettingsModal() {
-        const modal = document.getElementById('modal-settings');
-        const content = document.getElementById('modal-settings-content');
-        modal.classList.remove('hidden');
-        setTimeout(() => {
-          content.classList.remove('scale-95', 'opacity-0');
-          content.classList.add('scale-100', 'opacity-100');
-        }, 10);
-        lucide.createIcons();
-      }
-
-      function closeSettingsModal() {
-        const modal = document.getElementById('modal-settings');
-        const content = document.getElementById('modal-settings-content');
-        content.classList.remove('scale-100', 'opacity-100');
-        content.classList.add('scale-95', 'opacity-0');
-        setTimeout(() => modal.classList.add('hidden'), 300);
-      }
-
-      // Paid Fields Toggle
-      document.getElementById('form-is-paid')?.addEventListener('change', function() {
-        const paidFields = document.getElementById('form-paid-fields');
-        if (this.checked) {
-          paidFields.classList.remove('hidden');
-        } else {
-          paidFields.classList.add('hidden');
+        function updateThemeUI() {
+            const isDark = html.classList.contains('dark');
+            lightButton.classList.toggle('bg-alagoinhas-100', !isDark);
+            darkButton.classList.toggle('bg-alagoinhas-100', isDark);
         }
-      });
+
+        function setTheme(theme) {
+            if (theme === 'dark') {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            }
+            updateThemeUI();
+            refreshIcons();
+        }
+
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            html.classList.add('dark');
+        } else if (savedTheme === 'light') {
+            html.classList.remove('dark');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            html.classList.add('dark');
+        }
+        updateThemeUI();
+
+        settingsButton.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            settingsWrapper.classList.toggle('open');
+        });
+
+        settingsMenu.addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+
+        document.addEventListener('click', function() {
+            settingsWrapper.classList.remove('open');
+        });
+
+        lightButton.addEventListener('click', function() {
+            setTheme('light');
+            settingsWrapper.classList.remove('open');
+        });
+
+        darkButton.addEventListener('click', function() {
+            setTheme('dark');
+            settingsWrapper.classList.remove('open');
+        });
+
+        function hideLoadingScreen() {
+            const loading = document.getElementById('loading-screen');
+            if (!loading) return;
+            loading.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(function() { loading.classList.add('hidden'); }, 500);
+        }
+        window.hideLoadingScreen = hideLoadingScreen;
+        setTimeout(hideLoadingScreen, 3000);
+        setTimeout(refreshIcons, 100);
     </script>
-  </body>
+</body>
 </html>
