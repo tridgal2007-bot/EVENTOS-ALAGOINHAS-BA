@@ -1,149 +1,386 @@
+/* global supabaseClient */
 /* ============================================
    SCRIPT PRINCIPAL - ALAGOINHAS EVENTOS
    ============================================ */
+
+const IMAGE_BUCKET = 'alagoinhas-images';
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 let allEvents = [];
 let activeCategory = 'all';
 let currentUser = null;
 let currentProfile = null;
 let isRegisterMode = false;
-let isAdmin = false; // NOVA VARIÁVEL
+let isAdmin = false;
+let profileImageObjectUrl = null;
 
-/* ============================================
-   CATEGORIAS
-   ============================================ */
 const CATEGORIES = [
-    { id: 'all',         label: 'Todos os eventos',  icon: 'layout-grid',  color: 'bg-alagoinhas-500' },
-    { id: 'shows',       label: 'Shows e Música',     icon: 'mic-2',        color: 'bg-fuchsia-500' },
-    { id: 'festas',      label: 'Festas e Forró',     icon: 'party-popper', color: 'bg-amber-500' },
-    { id: 'cultura',     label: 'Cultura e Arte',     icon: 'palette',      color: 'bg-purple-500' },
-    { id: 'esportes',    label: 'Esportes',           icon: 'trophy',       color: 'bg-emerald-500' },
-    { id: 'gastronomia', label: 'Gastronomia',        icon: 'utensils',     color: 'bg-orange-500' },
-    { id: 'infantil',    label: 'Infantil',           icon: 'baby',         color: 'bg-pink-500' },
-    { id: 'religioso',   label: 'Religioso',          icon: 'church',       color: 'bg-sky-500' },
-    { id: 'outros',      label: 'Outros',             icon: 'tag',          color: 'bg-slate-500' }
+    { id: 'all', label: 'Todos os eventos', icon: 'calendar-days' },
+    { id: 'shows', label: 'Shows e Música', icon: 'mic-2' },
+    { id: 'festas', label: 'Festas e Forró', icon: 'party-popper' },
+    { id: 'cultura', label: 'Cultura e Arte', icon: 'palette' },
+    { id: 'esportes', label: 'Esportes', icon: 'trophy' },
+    { id: 'gastronomia', label: 'Gastronomia', icon: 'utensils' },
+    { id: 'infantil', label: 'Infantil', icon: 'baby' },
+    { id: 'religioso', label: 'Religioso', icon: 'church' },
+    { id: 'outros', label: 'Outros', icon: 'tag' }
 ];
 
-function categoryMeta(id) {
-    return CATEGORIES.find(c => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
-}
+const CATEGORY_META = Object.fromEntries(
+    CATEGORIES.map(item => [item.id, item])
+);
+
+const QUICK_CATEGORY_META = {
+    all: {
+        label: 'Todos',
+        categories: null
+    },
+    'shows-festas': {
+        label: 'Shows & Festas',
+        categories: ['shows', 'festas']
+    },
+    'esportes-saude': {
+        label: 'Esportes & Saúde',
+        categories: ['esportes']
+    },
+    cultura: {
+        label: 'Cultura',
+        categories: ['cultura']
+    },
+    gastronomia: {
+        label: 'Gastronomia',
+        categories: ['gastronomia']
+    },
+    infantil: {
+        label: 'Infantil',
+        categories: ['infantil']
+    },
+    religioso: {
+        label: 'Religioso',
+        categories: ['religioso']
+    },
+    outros: {
+        label: 'Outros',
+        categories: ['outros']
+    }
+};
+
+let calendarMonth = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1
+);
+
+let selectedCalendarDate = dateKey(new Date());
+
+const $ = id => document.getElementById(id);
 
 /* ============================================
-   RENDERIZAR LISTA DE CATEGORIAS
+   FUNÇÕES GERAIS
    ============================================ */
-function renderCategoryList() {
-    const list = document.getElementById('category-list');
-    if (!list) return;
 
-    list.innerHTML = CATEGORIES.map(cat => `
-        <button type="button" data-category="${cat.id}" class="category-chip ${cat.id === activeCategory ? 'active' : ''} w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-alagoinhas-100 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:bg-alagoinhas-50 dark:hover:bg-white/10 text-left">
-            <span class="chip-icon-wrap w-9 h-9 rounded-xl ${cat.color} bg-opacity-15 flex items-center justify-center flex-shrink-0">
-                <i data-lucide="${cat.icon}" class="w-4 h-4 text-alagoinhas-700 dark:text-alagoinhas-100"></i>
-            </span>
-            <span class="font-semibold text-alagoinhas-900 dark:text-alagoinhas-50">${cat.label}</span>
-        </button>
-    `).join('');
+function refreshIcons() {
+    if (
+        window.lucide &&
+        typeof window.lucide.createIcons === 'function'
+    ) {
+        window.lucide.createIcons();
+    }
+}
 
-    if (window.lucide) lucide.createIcons();
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+}
 
-    list.querySelectorAll('.category-chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-            activeCategory = btn.dataset.category;
-            updateCategoryUI();
-            applyFilters();
-            closeCategoryDrawer();
-        });
+function safeUrl(value) {
+    try {
+        const url = new URL(String(value || ''), window.location.href);
+
+        return ['http:', 'https:'].includes(url.protocol)
+            ? url.href
+            : '';
+    } catch {
+        return '';
+    }
+}
+
+function dateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+function eventDateKey(eventItem) {
+    if (!eventItem?.date) return '';
+
+    const date = new Date(eventItem.date);
+
+    return Number.isNaN(date.getTime())
+        ? ''
+        : dateKey(date);
+}
+
+function dateLabelFromKey(key) {
+    const [year, month, day] = key.split('-').map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
     });
 }
 
-/* ============================================
-   ATUALIZAR UI DE CATEGORIAS
-   ============================================ */
-function updateCategoryUI() {
-    document.querySelectorAll('.category-chip').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.category === activeCategory);
-    });
+function setMessage(element, message, type = 'error') {
+    if (!element) return;
 
-    const badge = document.getElementById('category-badge');
-    const label = document.getElementById('category-label');
-    const pillWrap = document.getElementById('active-category-pill');
-    const pillText = document.getElementById('active-category-text');
+    element.textContent = message;
 
-    if (activeCategory === 'all') {
-        if (badge) badge.classList.add('hidden');
-        if (label) label.textContent = 'Categorias';
-        if (pillWrap) pillWrap.classList.add('hidden');
+    element.classList.remove(
+        'hidden',
+        'text-red-500',
+        'text-emerald-500',
+        'text-alagoinhas-500',
+        'bg-red-500/10',
+        'bg-emerald-500/10'
+    );
+
+    if (type === 'success') {
+        element.classList.add(
+            'text-emerald-500',
+            'bg-emerald-500/10'
+        );
+    } else if (type === 'info') {
+        element.classList.add('text-alagoinhas-500');
     } else {
-        const meta = categoryMeta(activeCategory);
-        if (badge) badge.classList.remove('hidden');
-        if (label) label.textContent = 'Categorias';
-        if (pillWrap) {
-            pillWrap.classList.remove('hidden');
-            pillWrap.classList.add('flex');
+        element.classList.add(
+            'text-red-500',
+            'bg-red-500/10'
+        );
+    }
+}
+
+function clearMessage(element) {
+    if (!element) return;
+
+    element.textContent = '';
+    element.classList.add('hidden');
+}
+
+function formatDate(value) {
+    if (!value) return 'Data a confirmar';
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return 'Data a confirmar';
+    }
+
+    return date.toLocaleString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatPrice(eventItem) {
+    if (!eventItem.has_ticket) {
+        return 'Gratuito';
+    }
+
+    return `A partir de ${Number(eventItem.price || 0).toLocaleString(
+        'pt-BR',
+        {
+            style: 'currency',
+            currency: 'BRL'
         }
-        if (pillText) pillText.textContent = meta.label;
+    )}`;
+}
+
+function showLoadingMessage(message) {
+    const eventsContainer = $('events');
+
+    if (eventsContainer) {
+        eventsContainer.innerHTML = `
+            <div class="col-span-full text-center py-14 text-slate-500 dark:text-slate-400">
+                ${escapeHtml(message)}
+            </div>
+        `;
     }
 }
 
 /* ============================================
-   GAVETA DE CATEGORIAS
+   EVENTOS
    ============================================ */
-function openCategoryDrawer() {
-    const drawer = document.getElementById('category-drawer');
-    if (!drawer) return;
-    drawer.classList.add('open');
-    document.body.style.overflow = 'hidden';
-}
 
-function closeCategoryDrawer() {
-    const drawer = document.getElementById('category-drawer');
-    if (!drawer) return;
-    drawer.classList.remove('open');
-    document.body.style.overflow = '';
-}
+function renderEvents() {
+    const container = $('events');
 
-window.openCategoryDrawer = openCategoryDrawer;
-window.closeCategoryDrawer = closeCategoryDrawer;
+    if (!container) return;
 
-/* ============================================
-   VERIFICAR STATUS DE ADMIN
-   ============================================ */
-async function checkAdminStatus() {
-    if (!currentUser) {
-        isAdmin = false;
+    const searchText = ($('search')?.value || '')
+        .trim()
+        .toLocaleLowerCase('pt-BR');
+
+    const allowedCategories =
+        QUICK_CATEGORY_META[activeCategory]?.categories;
+
+    const filtered = allEvents.filter(eventItem => {
+        const matchesCategory =
+            !allowedCategories ||
+            allowedCategories.includes(eventItem.category);
+
+        const combinedText = `
+            ${eventItem.name || ''}
+            ${eventItem.description || ''}
+            ${eventItem.category || ''}
+        `.toLocaleLowerCase('pt-BR');
+
+        return matchesCategory &&
+            combinedText.includes(searchText);
+    });
+
+    updateCategoryFilterUI();
+
+    if (!filtered.length) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-16 glass-card rounded-2xl">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-alagoinhas-100 dark:bg-white/5 flex items-center justify-center">
+                    <i data-lucide="calendar-search" class="w-7 h-7 text-alagoinhas-500"></i>
+                </div>
+                <h3 class="font-display text-lg font-bold text-alagoinhas-900 dark:text-white">
+                    Nenhum evento encontrado
+                </h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                    Tente mudar sua busca ou categoria.
+                </p>
+                <button id="empty-clear-filters" type="button" class="mt-5 text-sm font-semibold text-alagoinhas-600 dark:text-alagoinhas-300 underline">
+                    Limpar filtros
+                </button>
+            </div>
+        `;
+
+        $('empty-clear-filters')?.addEventListener('click', () => {
+            activeCategory = 'all';
+
+            if ($('search')) {
+                $('search').value = '';
+            }
+
+            renderEvents();
+        });
+
+        refreshIcons();
         return;
     }
-    
-    try {
-        const { data, error } = await supabaseClient
-            .from('admins')
-            .select('email')
-            .eq('email', currentUser.email)
-            .single();
-        
-        isAdmin = !!data;
-        
-        const adminLink = document.getElementById('admin-link');
-        if (adminLink) {
-            if (isAdmin) {
-                adminLink.classList.remove('hidden');
-                adminLink.style.display = '';
-            } else {
-                adminLink.classList.add('hidden');
+
+    container.innerHTML = filtered.map((eventItem, index) => {
+        const category =
+            CATEGORY_META[eventItem.category] ||
+            CATEGORY_META.outros;
+
+        const imageUrl = safeUrl(eventItem.image);
+        const categoryLabel = category.label || 'Outros';
+        const dateLabel = formatDate(eventItem.date);
+
+        return `
+            <article
+                class="event-card glass-card rounded-2xl overflow-hidden cursor-pointer group fade-slide-in"
+                style="animation-delay:${index * 45}ms"
+                data-event-id="${escapeHtml(eventItem.id)}"
+                tabindex="0"
+                role="button"
+                aria-label="Ver evento ${escapeHtml(eventItem.name)}"
+            >
+                <div class="relative overflow-hidden bg-slate-100 dark:bg-white/5">
+                    ${
+                        imageUrl
+                            ? `
+                                <img
+                                    src="${escapeHtml(imageUrl)}"
+                                    alt="${escapeHtml(eventItem.name)}"
+                                    class="w-full h-56 object-cover transition-transform duration-500 group-hover:scale-105"
+                                    loading="lazy"
+                                    onerror="this.style.display='none'"
+                                >
+                            `
+                            : `
+                                <div class="w-full h-56 flex items-center justify-center">
+                                    <i data-lucide="calendar-days" class="w-12 h-12 text-alagoinhas-300"></i>
+                                </div>
+                            `
+                    }
+
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none"></div>
+
+                    <span class="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-white/95 text-alagoinhas-700 shadow">
+                        <i data-lucide="${category.icon}" class="w-3.5 h-3.5"></i>
+                        ${escapeHtml(categoryLabel)}
+                    </span>
+                </div>
+
+                <div class="p-5">
+                    <div class="flex items-start gap-3 mb-3">
+                        <div class="w-10 h-10 shrink-0 rounded-xl bg-alagoinhas-100 dark:bg-alagoinhas-500/10 text-alagoinhas-600 dark:text-alagoinhas-300 flex items-center justify-center">
+                            <i data-lucide="calendar-clock" class="w-5 h-5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold text-alagoinhas-600 dark:text-alagoinhas-300">
+                                ${escapeHtml(dateLabel)}
+                            </p>
+                            <h3 class="mt-1 font-display text-lg font-bold text-alagoinhas-900 dark:text-white line-clamp-2">
+                                ${escapeHtml(eventItem.name)}
+                            </h3>
+                        </div>
+                    </div>
+
+                    <p class="event-desc text-sm leading-6 line-clamp-3">
+                        ${escapeHtml(eventItem.description)}
+                    </p>
+
+                    <div class="mt-5 pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
+                        <span class="text-sm font-bold ${eventItem.has_ticket ? 'text-alagoinhas-600 dark:text-alagoinhas-300' : 'text-emerald-600 dark:text-emerald-400'}">
+                            ${escapeHtml(formatPrice(eventItem))}
+                        </span>
+                        <span class="text-xs font-bold text-alagoinhas-600 dark:text-alagoinhas-300 inline-flex items-center gap-1">
+                            Ver detalhes
+                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                        </span>
+                    </div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    container.querySelectorAll('[data-event-id]').forEach(card => {
+        const open = () => openEventModal(card.dataset.eventId);
+
+        card.addEventListener('click', open);
+
+        card.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                open();
             }
-        }
-    } catch (error) {
-        isAdmin = false;
-        const adminLink = document.getElementById('admin-link');
-        if (adminLink) adminLink.classList.add('hidden');
-    }
+        });
+    });
+
+    refreshIcons();
 }
 
-/* ============================================
-   CARREGAMENTO DE EVENTOS
-   ============================================ */
 async function loadEvents() {
-    const container = document.getElementById('events');
+    showLoadingMessage('Carregando eventos...');
 
     try {
         const { data, error } = await supabaseClient
@@ -154,531 +391,1154 @@ async function loadEvents() {
         if (error) throw error;
 
         allEvents = data || [];
-        renderEvents(allEvents);
 
-        if (window.hideLoadingScreen) {
-            window.hideLoadingScreen();
-        }
+        renderEvents();
+        renderCalendar();
     } catch (error) {
         console.error('Erro ao carregar eventos:', error);
-        container.innerHTML = `
-            <div class="col-span-full text-center py-20">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
-                    <i data-lucide="alert-circle" class="w-8 h-8 text-red-400"></i>
-                </div>
-                <p class="text-red-500 dark:text-red-400 text-lg font-semibold">Erro ao carregar eventos.</p>
-                <p class="text-slate-500 dark:text-slate-400 text-sm mt-2">Verifique a configuração do Supabase.</p>
-            </div>`;
-        if (window.lucide) lucide.createIcons();
-        if (window.hideLoadingScreen) window.hideLoadingScreen();
+
+        showLoadingMessage(
+            'Não foi possível carregar os eventos. Atualize a página ou tente novamente mais tarde.'
+        );
+    } finally {
+        window.hideLoadingScreen?.();
     }
 }
 
 /* ============================================
-   RENDERIZAR EVENTOS
+   FILTROS DE CATEGORIA
    ============================================ */
-function renderEvents(events) {
-    const container = document.getElementById('events');
 
-    if (events.length === 0) {
-        container.innerHTML = `
-            <div class="col-span-full text-center py-20">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full glass-effect mb-4">
-                    <i data-lucide="search-x" class="w-8 h-8 text-alagoinhas-300"></i>
-                </div>
-                <p class="event-title text-lg font-semibold">Nenhum evento encontrado 😢</p>
-                <p class="event-desc text-sm mt-2">Tente ajustar os filtros de busca</p>
-            </div>`;
-        if (window.lucide) lucide.createIcons();
+function updateCategoryFilterUI() {
+    const active =
+        QUICK_CATEGORY_META[activeCategory] ||
+        QUICK_CATEGORY_META.all;
+
+    const pill = $('active-category-pill');
+    const text = $('active-category-text');
+
+    if (activeCategory === 'all') {
+        pill?.classList.add('hidden');
+    } else {
+        pill?.classList.remove('hidden');
+        pill?.classList.add('flex');
+
+        if (text) {
+            text.textContent = active.label;
+        }
+    }
+
+    document.querySelectorAll('[data-quick-category]').forEach(button => {
+        const selected =
+            button.dataset.quickCategory === activeCategory;
+
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
+
+    document.querySelectorAll('[data-category]').forEach(button => {
+        const selected =
+            button.dataset.category === activeCategory;
+
+        button.classList.toggle('bg-alagoinhas-100', selected);
+        button.classList.toggle('dark:bg-white/10', selected);
+        button.classList.toggle('border-alagoinhas-300', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
+}
+
+function renderCategoryList() {
+    const container = $('category-list');
+
+    if (!container) return;
+
+    container.innerHTML = CATEGORIES.map(category => `
+        <button
+            type="button"
+            data-category="${category.id}"
+            class="w-full flex items-center gap-3 rounded-xl border border-transparent px-4 py-3 text-left text-sm font-semibold text-alagoinhas-800 dark:text-slate-200 hover:bg-alagoinhas-50 dark:hover:bg-white/5 transition-all"
+        >
+            <span class="w-9 h-9 rounded-xl bg-alagoinhas-100 dark:bg-white/5 text-alagoinhas-600 dark:text-alagoinhas-300 flex items-center justify-center">
+                <i data-lucide="${category.icon}" class="w-4 h-4"></i>
+            </span>
+            <span class="flex-1">${escapeHtml(category.label)}</span>
+            <i data-lucide="check" class="w-4 h-4 category-check ${category.id === activeCategory ? '' : 'hidden'}"></i>
+        </button>
+    `).join('');
+
+    container.querySelectorAll('[data-category]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeCategory = button.dataset.category;
+            closeCategoryDrawer();
+            renderEvents();
+        });
+    });
+
+    refreshIcons();
+}
+
+function openCategoryDrawer() {
+    $('category-drawer')?.classList.add('open');
+}
+
+function closeCategoryDrawer() {
+    $('category-drawer')?.classList.remove('open');
+}
+
+/* ============================================
+   DETALHES DO EVENTO
+   ============================================ */
+
+function openEventModal(id) {
+    const eventItem = allEvents.find(
+        item => String(item.id) === String(id)
+    );
+
+    if (!eventItem) return;
+
+    const imageUrl = safeUrl(eventItem.image);
+    const image = $('modal-img');
+
+    if (image) {
+        image.src = imageUrl;
+        image.alt = eventItem.name || 'Foto do evento';
+        image.classList.toggle('hidden', !imageUrl);
+    }
+
+    $('modal-title').textContent = eventItem.name || 'Evento';
+
+    $('modal-date').innerHTML = `
+        <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+        ${escapeHtml(formatDate(eventItem.date))}
+    `;
+
+    $('modal-desc').textContent =
+        eventItem.description || 'Sem descrição disponível.';
+
+    $('modal-price').textContent = formatPrice(eventItem);
+
+    const category =
+        CATEGORY_META[eventItem.category] ||
+        CATEGORY_META.outros;
+
+    const categoryBadge = $('modal-category');
+
+    if (categoryBadge) {
+        categoryBadge.innerHTML = `
+            <span class="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-alagoinhas-700 shadow">
+                <i data-lucide="${category.icon}" class="w-4 h-4"></i>
+                ${escapeHtml(category.label)}
+            </span>
+        `;
+
+        categoryBadge.classList.remove('hidden');
+    }
+
+    const link = $('modal-link');
+    const ticketUrl = safeUrl(eventItem.link);
+
+    if (link) {
+        if (eventItem.has_ticket && ticketUrl) {
+            link.href = ticketUrl;
+            link.classList.remove('hidden');
+            link.classList.add('inline-flex');
+            link.rel = 'noopener noreferrer';
+        } else {
+            link.removeAttribute('href');
+            link.classList.add('hidden');
+            link.classList.remove('inline-flex');
+        }
+    }
+
+    $('modal')?.classList.remove('hidden');
+    $('modal')?.classList.add('flex');
+
+    document.body.classList.add('overflow-hidden');
+
+    refreshIcons();
+}
+
+function closeEventModal() {
+    $('modal')?.classList.add('hidden');
+    $('modal')?.classList.remove('flex');
+
+    document.body.classList.remove('overflow-hidden');
+}
+
+/* ============================================
+   CALENDÁRIO DO MENU ☰
+   ============================================ */
+
+function openCalendarDrawer() {
+    $('calendar-drawer')?.classList.add('open');
+    $('calendar-drawer')?.setAttribute('aria-hidden', 'false');
+
+    renderCalendar();
+}
+
+function closeCalendarDrawer() {
+    $('calendar-drawer')?.classList.remove('open');
+    $('calendar-drawer')?.setAttribute('aria-hidden', 'true');
+}
+
+function renderCalendar() {
+    const title = $('calendar-month');
+    const grid = $('calendar-grid');
+
+    if (!title || !grid) return;
+
+    title.textContent = calendarMonth.toLocaleDateString('pt-BR', {
+        month: 'long',
+        year: 'numeric'
+    });
+
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = dateKey(new Date());
+
+    const eventDays = new Set(
+        allEvents.map(eventDateKey).filter(Boolean)
+    );
+
+    const cells = [];
+
+    for (let i = 0; i < firstWeekday; i++) {
+        cells.push(
+            '<span class="calendar-day empty" aria-hidden="true"></span>'
+        );
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const key = dateKey(date);
+        const hasEvents = eventDays.has(key);
+
+        const classes = [
+            'calendar-day',
+            key === selectedCalendarDate ? 'selected' : '',
+            key === todayKey ? 'today' : ''
+        ].filter(Boolean).join(' ');
+
+        cells.push(`
+            <button
+                type="button"
+                class="${classes}"
+                data-calendar-date="${key}"
+                aria-label="${day}${hasEvents ? ', tem eventos' : ''}"
+                aria-pressed="${key === selectedCalendarDate}"
+            >
+                <span>${day}</span>
+                ${
+                    hasEvents
+                        ? '<span class="event-dot" aria-hidden="true"></span>'
+                        : '<span class="h-[5px]"></span>'
+                }
+            </button>
+        `);
+    }
+
+    grid.innerHTML = cells.join('');
+
+    grid.querySelectorAll('[data-calendar-date]').forEach(button => {
+        button.addEventListener('click', () => {
+            selectedCalendarDate = button.dataset.calendarDate;
+
+            renderCalendar();
+            renderCalendarEventsForDate(selectedCalendarDate);
+        });
+    });
+
+    renderCalendarEventsForDate(selectedCalendarDate);
+    refreshIcons();
+}
+
+function renderCalendarEventsForDate(key) {
+    const list = $('calendar-event-list');
+    const title = $('calendar-selected-title');
+    const count = $('calendar-selected-count');
+
+    if (!list) return;
+
+    if (!key) {
+        list.innerHTML = `
+            <p class="py-4 text-slate-500">
+                Selecione uma data no calendário.
+            </p>
+        `;
+
+        if (title) title.textContent = 'Eventos do dia';
+        if (count) count.textContent = '';
+
         return;
     }
 
-    container.innerHTML = events.map((ev, idx) => {
-        const date = new Date(ev.date);
-        const dateStr = date.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    const events = allEvents
+        .filter(eventItem => eventDateKey(eventItem) === key)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        const badge = ev.has_ticket
-            ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-alagoinhas-500/20 text-alagoinhas-700 dark:text-alagoinhas-300 text-xs font-bold border border-alagoinhas-500/30"><i data-lucide="ticket" class="w-3.5 h-3.5"></i> R$ ${Number(ev.price).toFixed(2)}</span>`
-            : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-500/30"><i data-lucide="gift" class="w-3.5 h-3.5"></i> Gratuito</span>`;
+    if (title) {
+        title.textContent = dateLabelFromKey(key);
+    }
 
-        const meta = categoryMeta(ev.category);
-        const categoryTag = `<span class="absolute top-3 left-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${meta.color} text-white text-xs font-bold shadow-lg backdrop-blur-sm"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i> ${meta.label}</span>`;
+    if (count) {
+        count.textContent = `${events.length} ${
+            events.length === 1 ? 'evento' : 'eventos'
+        }`;
+    }
+
+    if (!events.length) {
+        list.innerHTML = `
+            <p class="py-4 text-slate-500">
+                Nenhum evento nesta data.
+            </p>
+        `;
+        return;
+    }
+
+    list.innerHTML = events.map(eventItem => {
+        const time = new Date(eventItem.date).toLocaleTimeString(
+            'pt-BR',
+            {
+                hour: '2-digit',
+                minute: '2-digit'
+            }
+        );
+
+        const categoryLabel =
+            CATEGORY_META[eventItem.category]?.label || 'Outros';
 
         return `
-            <article class="event-card cursor-pointer group" data-event-id="${ev.id}" onclick="openModalById(${ev.id})">
-                <div class="relative overflow-hidden h-48">
-                    <img src="${ev.image}" alt="${escapeHtml(ev.name)}" onerror="this.src='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80'" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80"></div>
-                    ${ev.category ? categoryTag : ''}
-                </div>
-                <div class="p-5 flex flex-col flex-1">
-                    <h3 class="text-xl font-bold event-title mb-2 line-clamp-2 group-hover:text-alagoinhas-500 transition-colors">${escapeHtml(ev.name)}</h3>
-                    <p class="flex items-center gap-2 event-date text-sm font-medium mb-3">
-                        <i data-lucide="calendar" class="w-4 h-4"></i> ${dateStr}
-                    </p>
-                    <p class="event-desc text-sm line-clamp-3 mb-4 flex-1">${escapeHtml(ev.description)}</p>
-                    <div class="mt-auto">${badge}</div>
-                </div>
-            </article>
+            <button
+                type="button"
+                class="calendar-event-row w-full text-left hover:bg-white/5 rounded-lg px-2 -mx-2"
+                data-calendar-event="${escapeHtml(eventItem.id)}"
+            >
+                <span class="mt-1 w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-bold text-white">
+                        ${escapeHtml(eventItem.name)}
+                    </span>
+                    <span class="block text-xs text-slate-400 mt-1">
+                        ${time} · ${escapeHtml(categoryLabel)}
+                    </span>
+                </span>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 mt-1"></i>
+            </button>
         `;
     }).join('');
 
-    if (window.lucide) setTimeout(() => lucide.createIcons(), 50);
-}
+    list.querySelectorAll('[data-calendar-event]').forEach(button => {
+        button.addEventListener('click', () => {
+            closeCalendarDrawer();
+            openEventModal(button.dataset.calendarEvent);
+        });
+    });
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    refreshIcons();
 }
 
 /* ============================================
-   MODAL DE EVENTO
+   LOGIN E CADASTRO
    ============================================ */
-function openModalById(id) {
-    const ev = allEvents.find(e => e.id === id);
-    if (!ev) return;
-    openModal(ev);
+
+function openAuthModal(register = false) {
+    isRegisterMode = Boolean(register);
+    updateAuthModeUI();
+
+    $('auth-modal')?.classList.remove('hidden');
+    $('auth-modal')?.classList.add('flex');
+
+    clearMessage($('auth-message'));
 }
-window.openModalById = openModalById;
 
-function openModal(eventData) {
-    const date = new Date(eventData.date);
-    const dateStr = date.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+function closeAuthModal() {
+    $('auth-modal')?.classList.add('hidden');
+    $('auth-modal')?.classList.remove('flex');
+}
 
-    document.getElementById('modal-img').src = eventData.image;
-    document.getElementById('modal-title').textContent = eventData.name;
-    document.getElementById('modal-date').innerHTML = `<i data-lucide="clock" class="w-5 h-5"></i> ${dateStr}`;
-    document.getElementById('modal-desc').textContent = eventData.description;
+function updateAuthModeUI() {
+    const title = $('auth-title');
+    const submit = $('auth-submit');
+    const toggle = $('toggle-auth-mode');
 
-    const modalCategory = document.getElementById('modal-category');
-    if (modalCategory) {
-        if (eventData.category) {
-            const meta = categoryMeta(eventData.category);
-            modalCategory.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${meta.color} text-white text-xs font-bold shadow-lg"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i> ${meta.label}</span>`;
-            modalCategory.classList.remove('hidden');
-        } else {
-            modalCategory.classList.add('hidden');
-        }
+    if (title) {
+        title.textContent = isRegisterMode ? 'Criar conta' : 'Entrar';
     }
 
-    const priceEl = document.getElementById('modal-price');
-    const linkEl = document.getElementById('modal-link');
+    if (submit) {
+        submit.textContent = isRegisterMode ? 'Criar conta' : 'Entrar';
+    }
 
-    if (eventData.has_ticket) {
-        priceEl.innerHTML = `<span class="block text-slate-500 dark:text-slate-400 text-sm font-normal mb-1">Valor do ingresso</span>R$ ${Number(eventData.price).toFixed(2)}`;
-        priceEl.classList.remove('hidden');
-        if (eventData.link) {
-            linkEl.href = eventData.link;
-            linkEl.classList.remove('hidden');
-            linkEl.classList.add('inline-flex');
-        } else {
-            linkEl.classList.add('hidden');
-            linkEl.classList.remove('inline-flex');
+    if (toggle) {
+        toggle.textContent = isRegisterMode
+            ? 'Já tem conta? Entrar'
+            : 'Não tem conta? Criar uma';
+    }
+}
+
+/* ============================================
+   PERFIL DO USUÁRIO
+   ============================================ */
+
+async function getOrCreateProfile(user) {
+    if (!user) return null;
+
+    const metadata = user.user_metadata || {};
+
+    const metadataName =
+        metadata.full_name ||
+        metadata.name ||
+        user.email?.split('@')[0] ||
+        'Usuário';
+
+    const metadataAvatar =
+        metadata.avatar_url ||
+        metadata.picture ||
+        null;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id,name,avatar_url')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+            return {
+                ...data,
+                name:
+                    metadata.full_name ||
+                    metadata.name ||
+                    data.name ||
+                    metadataName,
+                avatar_url:
+                    metadataAvatar ||
+                    data.avatar_url ||
+                    null
+            };
         }
+
+        const newProfile = {
+            id: user.id,
+            name: metadataName,
+            avatar_url: metadataAvatar
+        };
+
+        const { error: insertError } = await supabaseClient
+            .from('profiles')
+            .upsert(newProfile, {
+                onConflict: 'id'
+            });
+
+        if (insertError) {
+            console.warn(
+                'Perfil será mantido nos metadados da conta:',
+                insertError.message
+            );
+        }
+
+        return newProfile;
+    } catch (error) {
+        console.warn(
+            'Tabela profiles indisponível; usando metadados da conta:',
+            error.message
+        );
+
+        return {
+            id: user.id,
+            name: metadataName,
+            avatar_url: metadataAvatar
+        };
+    }
+}
+
+async function refreshUserUI() {
+    const loggedIn = Boolean(currentUser);
+
+    $('user-menu')?.classList.toggle('hidden', !loggedIn);
+    $('login-button')?.classList.toggle('hidden', loggedIn);
+    $('admin-link')?.classList.toggle('hidden', !isAdmin);
+
+    if (!loggedIn) {
+        currentProfile = null;
+        $('user-dropdown')?.classList.add('hidden');
+        return;
+    }
+
+    currentProfile = await getOrCreateProfile(currentUser);
+
+    const displayName =
+        currentProfile?.name ||
+        currentUser.user_metadata?.full_name ||
+        currentUser.user_metadata?.name ||
+        currentUser.email?.split('@')[0] ||
+        'Usuário';
+
+    const avatarUrl = safeUrl(
+        currentUser.user_metadata?.avatar_url ||
+        currentUser.user_metadata?.picture ||
+        currentProfile?.avatar_url ||
+        ''
+    );
+
+    if ($('dropdown-name')) {
+        $('dropdown-name').textContent = displayName;
+    }
+
+    if ($('dropdown-email')) {
+        $('dropdown-email').textContent = currentUser.email || '';
+    }
+
+    const avatar = $('user-avatar');
+    const avatarIcon = $('user-avatar-icon');
+
+    if (avatar && avatarUrl) {
+        avatar.onerror = () => {
+            avatar.classList.add('hidden');
+            avatar.removeAttribute('src');
+            avatarIcon?.classList.remove('hidden');
+        };
+
+        avatar.onload = () => {
+            avatarIcon?.classList.add('hidden');
+        };
+
+        avatar.src = avatarUrl;
+        avatar.alt = `Foto de ${displayName}`;
+        avatar.classList.remove('hidden');
+        avatarIcon?.classList.add('hidden');
     } else {
-        priceEl.innerHTML = `<span class="block text-slate-500 dark:text-slate-400 text-sm font-normal mb-1">Entrada</span><span class="text-emerald-500">Gratuita</span>`;
-        priceEl.classList.remove('hidden');
-        linkEl.classList.add('hidden');
-        linkEl.classList.remove('inline-flex');
+        avatar?.classList.add('hidden');
+        avatar?.removeAttribute('src');
+        avatarIcon?.classList.remove('hidden');
     }
 
-    const modal = document.getElementById('modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    document.body.style.overflow = 'hidden';
+    try {
+        const { data: adminData, error: adminError } = await supabaseClient
+            .from('admins')
+            .select('email')
+            .eq('email', currentUser.email)
+            .maybeSingle();
 
-    if (window.lucide) setTimeout(() => lucide.createIcons(), 50);
-}
-window.openModal = openModal;
+        isAdmin = !adminError && Boolean(adminData);
+    } catch {
+        isAdmin = false;
+    }
 
-function closeModal() {
-    const modal = document.getElementById('modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-    document.body.style.overflow = '';
+    $('admin-link')?.classList.toggle('hidden', !isAdmin);
+
+    refreshIcons();
 }
-window.closeModal = closeModal;
+
+function validateSelectedImage(file) {
+    if (!file) {
+        throw new Error('Selecione uma imagem.');
+    }
+
+    const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+        throw new Error('Use uma imagem JPG, PNG, WEBP ou GIF.');
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+        throw new Error('A imagem deve ter no máximo 5 MB.');
+    }
+}
+
+async function uploadProfileImage(file) {
+    if (!file) {
+        return currentUser?.user_metadata?.avatar_url ||
+            currentProfile?.avatar_url ||
+            null;
+    }
+
+    validateSelectedImage(file);
+
+    const extension = (file.name.split('.').pop() || 'jpg')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '') || 'jpg';
+
+    const uniqueId = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    const path = `${currentUser.id}/${uniqueId}.${extension}`;
+
+    const { error } = await supabaseClient.storage
+        .from(IMAGE_BUCKET)
+        .upload(path, file, {
+            cacheControl: '3600',
+            contentType: file.type,
+            upsert: false
+        });
+
+    if (error) {
+        throw new Error(
+            `Não foi possível enviar a foto: ${error.message}`
+        );
+    }
+
+    const { data } = supabaseClient
+        .storage
+        .from(IMAGE_BUCKET)
+        .getPublicUrl(path);
+
+    if (!data?.publicUrl) {
+        throw new Error(
+            'O Supabase não retornou o endereço da foto.'
+        );
+    }
+
+    return data.publicUrl;
+}
+
+function openProfileModal() {
+    if (!currentUser) {
+        openAuthModal(false);
+        return;
+    }
+
+    const nameInput = $('profile-name');
+
+    if (nameInput) {
+        nameInput.value =
+            currentProfile?.name ||
+            currentUser.user_metadata?.full_name ||
+            currentUser.email?.split('@')[0] ||
+            '';
+    }
+
+    const fileInput = $('profile-avatar');
+
+    if (fileInput) {
+        fileInput.value = '';
+    }
+
+    const preview = $('profile-preview');
+    const icon = $('profile-icon');
+
+    const avatarUrl = safeUrl(
+        currentUser.user_metadata?.avatar_url ||
+        currentUser.user_metadata?.picture ||
+        currentProfile?.avatar_url ||
+        ''
+    );
+
+    if (preview && avatarUrl) {
+        preview.src = avatarUrl;
+        preview.classList.remove('hidden');
+        icon?.classList.add('hidden');
+    } else {
+        preview?.classList.add('hidden');
+        preview?.removeAttribute('src');
+        icon?.classList.remove('hidden');
+    }
+
+    clearMessage($('profile-message'));
+
+    $('profile-modal')?.classList.remove('hidden');
+    $('profile-modal')?.classList.add('flex');
+}
+
+function closeProfileModal() {
+    $('profile-modal')?.classList.add('hidden');
+    $('profile-modal')?.classList.remove('flex');
+
+    if (profileImageObjectUrl) {
+        URL.revokeObjectURL(profileImageObjectUrl);
+    }
+
+    profileImageObjectUrl = null;
+}
+
+window.closeProfileModal = closeProfileModal;
+
+async function handleProfileSubmit(event) {
+    event.preventDefault();
+
+    if (!currentUser) {
+        setMessage(
+            $('profile-message'),
+            'Entre na sua conta para editar o perfil.'
+        );
+        return;
+    }
+
+    const button = $('profile-submit');
+    const file = $('profile-avatar')?.files?.[0] || null;
+    const name = ($('profile-name')?.value || '').trim();
+
+    if (!name) {
+        setMessage($('profile-message'), 'Informe seu nome.');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Salvando...';
+
+    try {
+        const avatarUrl = await uploadProfileImage(file);
+
+        const userMetadata = {
+            ...currentUser.user_metadata,
+            full_name: name,
+            name,
+            avatar_url: avatarUrl
+        };
+
+        const {
+            data: authData,
+            error: authError
+        } = await supabaseClient.auth.updateUser({
+            data: userMetadata
+        });
+
+        if (authError) {
+            throw authError;
+        }
+
+        if (authData?.user) {
+            currentUser = authData.user;
+        }
+
+        const profileData = {
+            id: currentUser.id,
+            name,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+        };
+
+        // Os metadados da conta já foram atualizados.
+        // Esta gravação tenta sincronizar também a tabela profiles.
+        const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .upsert(profileData, {
+                onConflict: 'id'
+            });
+
+        if (profileError) {
+            console.warn(
+                'Perfil salvo nos metadados; tabela profiles não sincronizada:',
+                profileError.message
+            );
+        }
+
+        currentProfile = profileData;
+
+        await refreshUserUI();
+
+        setMessage(
+            $('profile-message'),
+            'Perfil atualizado com sucesso!',
+            'success'
+        );
+
+        setTimeout(closeProfileModal, 900);
+    } catch (error) {
+        console.error('Erro ao atualizar perfil:', error);
+
+        setMessage(
+            $('profile-message'),
+            error.message || 'Não foi possível salvar seu perfil.'
+        );
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Salvar Alterações';
+    }
+}
 
 /* ============================================
    AUTENTICAÇÃO
    ============================================ */
-async function checkAuth() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    currentUser = session?.user || null;
-    
-    if (currentUser) {
-        await loadProfile();
-        await checkAdminStatus(); // VERIFICA SE É ADMIN
-    } else {
-        isAdmin = false;
+
+async function handleAuthSubmit(event) {
+    event.preventDefault();
+
+    const email = ($('auth-email')?.value || '')
+        .trim()
+        .toLowerCase();
+
+    const password = $('auth-password')?.value || '';
+    const button = $('auth-submit');
+
+    if (!email || !password) {
+        setMessage(
+            $('auth-message'),
+            'Preencha o e-mail e a senha.'
+        );
+        return;
     }
-    
-    updateAuthUI();
-}
 
-async function loadProfile() {
-    if (!currentUser) return;
-    try {
-        const { data, error } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .single();
-        if (error) throw error;
-        currentProfile = data;
-    } catch (error) {
-        console.error('Erro ao carregar perfil:', error);
+    if (isRegisterMode && password.length < 6) {
+        setMessage(
+            $('auth-message'),
+            'A senha precisa ter pelo menos 6 caracteres.'
+        );
+        return;
     }
-}
 
-function updateAuthUI() {
-    const loginButton = document.getElementById('login-button');
-    const userMenu = document.getElementById('user-menu');
-    const adminLink = document.getElementById('admin-link');
-    const userName = document.getElementById('user-name');
-    const userEmail = document.getElementById('dropdown-email');
-    const dropdownName = document.getElementById('dropdown-name');
-    const userAvatar = document.getElementById('user-avatar');
-    const userAvatarIcon = document.getElementById('user-avatar-icon');
+    button.disabled = true;
+    button.textContent = isRegisterMode
+        ? 'Criando conta...'
+        : 'Entrando...';
 
-    if (currentUser) {
-        if (loginButton) loginButton.classList.add('hidden');
-        if (userMenu) {
-            userMenu.classList.remove('hidden');
-            const displayName = currentProfile?.full_name || currentUser.email.split('@')[0];
-            const avatarUrl = currentProfile?.avatar_url;
-            
-            if (userName) userName.textContent = displayName;
-            if (dropdownName) dropdownName.textContent = displayName;
-            if (userEmail) userEmail.textContent = currentUser.email;
-            
-            if (avatarUrl) {
-                userAvatar.src = avatarUrl;
-                userAvatar.classList.remove('hidden');
-                userAvatarIcon.classList.add('hidden');
-            } else {
-                userAvatar.classList.add('hidden');
-                userAvatarIcon.classList.remove('hidden');
-            }
-        }
-        if (adminLink) {
-            if (isAdmin) {
-                adminLink.classList.remove('hidden');
-                adminLink.style.display = '';
-            } else {
-                adminLink.classList.add('hidden');
-            }
-        }
-    } else {
-        if (loginButton) loginButton.classList.remove('hidden');
-        if (userMenu) userMenu.classList.add('hidden');
-        if (adminLink) adminLink.classList.add('hidden');
-    }
-}
-
-function openAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    document.body.style.overflow = 'hidden';
-    if (window.lucide) lucide.createIcons();
-}
-window.openAuthModal = openAuthModal;
-
-function closeAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-    document.body.style.overflow = '';
-    document.getElementById('auth-form').reset();
-    document.getElementById('auth-message').classList.add('hidden');
-    isRegisterMode = false;
-    updateAuthModeUI();
-}
-window.closeAuthModal = closeAuthModal;
-
-function updateAuthModeUI() {
-    const title = document.getElementById('auth-title');
-    const submit = document.getElementById('auth-submit');
-    const toggle = document.getElementById('toggle-auth-mode');
-
-    if (isRegisterMode) {
-        title.textContent = 'Criar Conta';
-        submit.textContent = 'Criar Conta';
-        toggle.textContent = 'Já tem conta? Entrar';
-    } else {
-        title.textContent = 'Entrar';
-        submit.textContent = 'Entrar';
-        toggle.textContent = 'Não tem conta? Criar uma';
-    }
-}
-
-function showAuthMessage(message, type) {
-    const msgEl = document.getElementById('auth-message');
-    msgEl.textContent = message;
-    msgEl.className = `text-sm font-semibold p-3 rounded-xl ${
-        type === 'error' 
-            ? 'bg-red-500/10 text-red-500 border border-red-500/20' 
-            : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-    }`;
-    msgEl.classList.remove('hidden');
-}
-
-document.getElementById('auth-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const submitBtn = document.getElementById('auth-submit');
-
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline-block"></i> Processando...';
-    if (window.lucide) lucide.createIcons();
+    clearMessage($('auth-message'));
 
     try {
-        let result;
-        if (isRegisterMode) {
-            result = await supabaseClient.auth.signUp({ email, password });
-            if (result.error) throw result.error;
-            showAuthMessage('Conta criada com sucesso! Verifique seu email para confirmar.', 'success');
-            setTimeout(() => {
-                isRegisterMode = false;
-                updateAuthModeUI();
-                document.getElementById('auth-form').reset();
-                document.getElementById('auth-message').classList.add('hidden');
-            }, 3000);
-        } else {
-            result = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (result.error) throw result.error;
-            currentUser = result.data.user;
-            await loadProfile();
-            await checkAdminStatus();
-            updateAuthUI();
-            closeAuthModal();
+        const result = isRegisterMode
+            ? await supabaseClient.auth.signUp({
+                email,
+                password
+            })
+            : await supabaseClient.auth.signInWithPassword({
+                email,
+                password
+            });
+
+        if (result.error) {
+            throw result.error;
         }
+
+        if (isRegisterMode && !result.data.session) {
+            setMessage(
+                $('auth-message'),
+                'Conta criada! Confira seu e-mail para confirmar o cadastro.',
+                'success'
+            );
+
+            return;
+        }
+
+        closeAuthModal();
+        $('auth-form')?.reset();
     } catch (error) {
-        console.error('Auth error:', error);
-        showAuthMessage(error.message || 'Erro ao processar. Tente novamente.', 'error');
+        setMessage(
+            $('auth-message'),
+            error.message || 'Não foi possível autenticar.'
+        );
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = isRegisterMode ? 'Criar Conta' : 'Entrar';
+        button.disabled = false;
+        updateAuthModeUI();
     }
-});
+}
 
-document.getElementById('toggle-auth-mode').addEventListener('click', () => {
-    isRegisterMode = !isRegisterMode;
-    updateAuthModeUI();
-    document.getElementById('auth-message').classList.add('hidden');
-});
+async function signInWithGoogle() {
+    const button = $('google-login');
 
-document.getElementById('google-login').addEventListener('click', async () => {
+    if (button) {
+        button.disabled = true;
+    }
+
     try {
         const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin + '/index.html' }
+            options: {
+                redirectTo: window.location.href.split('#')[0]
+            }
         });
-        if (error) throw error;
+
+        if (error) {
+            throw error;
+        }
     } catch (error) {
-        console.error('Google login error:', error);
-        showAuthMessage(error.message || 'Erro ao fazer login com Google.', 'error');
-    }
-});
+        setMessage(
+            $('auth-message'),
+            error.message || 'Não foi possível entrar com Google.'
+        );
 
-document.getElementById('logout-button').addEventListener('click', async () => {
-    await supabaseClient.auth.signOut();
-    currentUser = null;
-    currentProfile = null;
-    isAdmin = false;
-    updateAuthUI();
-});
-
-document.getElementById('user-button').addEventListener('click', (e) => {
-    e.stopPropagation();
-    document.getElementById('user-dropdown').classList.toggle('hidden');
-});
-
-document.addEventListener('click', () => {
-    document.getElementById('user-dropdown').classList.add('hidden');
-});
-
-document.getElementById('login-button').addEventListener('click', openAuthModal);
-
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN') {
-        currentUser = session.user;
-        await loadProfile();
-        await checkAdminStatus();
-        updateAuthUI();
-    } else if (event === 'SIGNED_OUT') {
-        currentUser = null;
-        currentProfile = null;
-        isAdmin = false;
-        updateAuthUI();
-    }
-});
-
-/* ============================================
-   EDIÇÃO DE PERFIL
-   ============================================ */
-function openProfileModal() {
-    const modal = document.getElementById('profile-modal');
-    const nameInput = document.getElementById('profile-name');
-    const avatarInput = document.getElementById('profile-avatar');
-    const preview = document.getElementById('profile-preview');
-    const icon = document.getElementById('profile-icon');
-    
-    if (currentProfile) {
-        nameInput.value = currentProfile.full_name || '';
-        avatarInput.value = currentProfile.avatar_url || '';
-        if (currentProfile.avatar_url) {
-            preview.src = currentProfile.avatar_url;
-            preview.classList.remove('hidden');
-            icon.classList.add('hidden');
-        } else {
-            preview.classList.add('hidden');
-            icon.classList.remove('hidden');
+        if (button) {
+            button.disabled = false;
         }
     }
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    document.body.style.overflow = 'hidden';
-    if (window.lucide) lucide.createIcons();
 }
-window.openProfileModal = openProfileModal;
 
-function closeProfileModal() {
-    const modal = document.getElementById('profile-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-    document.body.style.overflow = '';
-    document.getElementById('profile-form').reset();
-    document.getElementById('profile-message').classList.add('hidden');
-}
-window.closeProfileModal = closeProfileModal;
+async function logoutUser() {
+    const { error } = await supabaseClient.auth.signOut();
 
-document.getElementById('profile-avatar').addEventListener('input', (e) => {
-    const url = e.target.value;
-    const preview = document.getElementById('profile-preview');
-    const icon = document.getElementById('profile-icon');
-    if (url) {
-        preview.src = url;
-        preview.classList.remove('hidden');
-        icon.classList.add('hidden');
-    } else {
-        preview.classList.add('hidden');
-        icon.classList.remove('hidden');
+    if (error) {
+        alert(`Erro ao sair: ${error.message}`);
     }
-});
 
-function showProfileMessage(message, type) {
-    const msgEl = document.getElementById('profile-message');
-    msgEl.textContent = message;
-    msgEl.className = `text-sm font-semibold p-3 rounded-xl ${
-        type === 'error' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-    }`;
-    msgEl.classList.remove('hidden');
+    $('user-dropdown')?.classList.add('hidden');
 }
-
-document.getElementById('profile-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fullName = document.getElementById('profile-name').value.trim();
-    const avatarUrl = document.getElementById('profile-avatar').value.trim();
-    const submitBtn = document.getElementById('profile-submit');
-
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline-block"></i> Salvando...';
-    if (window.lucide) lucide.createIcons();
-
-    try {
-        const { error } = await supabaseClient.from('profiles').update({ full_name: fullName, avatar_url: avatarUrl || null }).eq('id', currentUser.id);
-        if (error) throw error;
-        showProfileMessage('Perfil atualizado com sucesso!', 'success');
-        await loadProfile();
-        updateAuthUI();
-        setTimeout(() => { closeProfileModal(); }, 1500);
-    } catch (error) {
-        console.error('Profile update error:', error);
-        showProfileMessage(error.message || 'Erro ao atualizar perfil.', 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Salvar Alterações';
-    }
-});
-
-document.getElementById('edit-profile-button').addEventListener('click', () => {
-    document.getElementById('user-dropdown').classList.add('hidden');
-    openProfileModal();
-});
 
 /* ============================================
-   EVENT LISTENERS
+   EVENTOS DOS BOTÕES E DA PÁGINA
    ============================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('search');
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
 
-    const categoryDrawerBtn = document.getElementById('category-drawer-btn');
-    if (categoryDrawerBtn) categoryDrawerBtn.addEventListener('click', openCategoryDrawer);
+function setupPageEvents() {
+    $('search')?.addEventListener('input', renderEvents);
 
-    const closeCategoryBtn = document.getElementById('close-category');
-    if (closeCategoryBtn) closeCategoryBtn.addEventListener('click', closeCategoryDrawer);
-
-    const categoryBackdrop = document.getElementById('category-backdrop');
-    if (categoryBackdrop) categoryBackdrop.addEventListener('click', closeCategoryDrawer);
-
-    const clearCategoryBtn = document.getElementById('clear-category');
-    if (clearCategoryBtn) {
-        clearCategoryBtn.addEventListener('click', () => {
-            activeCategory = 'all';
-            updateCategoryUI();
-            applyFilters();
+    document.querySelectorAll('[data-quick-category]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeCategory = button.dataset.quickCategory;
+            renderEvents();
         });
-    }
+    });
 
-    const modalBackdrop = document.getElementById('modal-backdrop');
-    if (modalBackdrop) modalBackdrop.addEventListener('click', closeModal);
+    $('menu-button')?.addEventListener(
+        'click',
+        openCalendarDrawer
+    );
 
-    const closeModalBtn = document.getElementById('close-modal');
-    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+    $('calendar-close')?.addEventListener(
+        'click',
+        closeCalendarDrawer
+    );
 
-    document.addEventListener('keydown', (event) => {
+    $('calendar-backdrop')?.addEventListener(
+        'click',
+        closeCalendarDrawer
+    );
+
+    $('calendar-prev')?.addEventListener('click', () => {
+        calendarMonth = new Date(
+            calendarMonth.getFullYear(),
+            calendarMonth.getMonth() - 1,
+            1
+        );
+
+        selectedCalendarDate = dateKey(calendarMonth);
+
+        renderCalendar();
+    });
+
+    $('calendar-next')?.addEventListener('click', () => {
+        calendarMonth = new Date(
+            calendarMonth.getFullYear(),
+            calendarMonth.getMonth() + 1,
+            1
+        );
+
+        selectedCalendarDate = dateKey(calendarMonth);
+
+        renderCalendar();
+    });
+
+    $('category-drawer-btn')?.addEventListener(
+        'click',
+        openCategoryDrawer
+    );
+
+    $('close-category')?.addEventListener(
+        'click',
+        closeCategoryDrawer
+    );
+
+    $('category-backdrop')?.addEventListener(
+        'click',
+        closeCategoryDrawer
+    );
+
+    $('clear-category')?.addEventListener('click', () => {
+        activeCategory = 'all';
+        renderEvents();
+    });
+
+    $('close-modal')?.addEventListener(
+        'click',
+        closeEventModal
+    );
+
+    $('modal-backdrop')?.addEventListener(
+        'click',
+        closeEventModal
+    );
+
+    $('login-button')?.addEventListener(
+        'click',
+        () => openAuthModal(false)
+    );
+
+    $('toggle-auth-mode')?.addEventListener('click', () => {
+        isRegisterMode = !isRegisterMode;
+        updateAuthModeUI();
+        clearMessage($('auth-message'));
+    });
+
+    $('auth-form')?.addEventListener(
+        'submit',
+        handleAuthSubmit
+    );
+
+    $('google-login')?.addEventListener(
+        'click',
+        signInWithGoogle
+    );
+
+    $('user-button')?.addEventListener('click', event => {
+        event.stopPropagation();
+        $('user-dropdown')?.classList.toggle('hidden');
+    });
+
+    $('user-dropdown')?.addEventListener('click', event => {
+        event.stopPropagation();
+    });
+
+    document.addEventListener('click', () => {
+        $('user-dropdown')?.classList.add('hidden');
+    });
+
+    $('edit-profile-button')?.addEventListener('click', () => {
+        $('user-dropdown')?.classList.add('hidden');
+        openProfileModal();
+    });
+
+    $('logout-button')?.addEventListener(
+        'click',
+        logoutUser
+    );
+
+    $('profile-form')?.addEventListener(
+        'submit',
+        handleProfileSubmit
+    );
+
+    $('profile-avatar')?.addEventListener('change', event => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        try {
+            validateSelectedImage(file);
+        } catch (error) {
+            event.target.value = '';
+
+            setMessage(
+                $('profile-message'),
+                error.message
+            );
+
+            return;
+        }
+
+        if (profileImageObjectUrl) {
+            URL.revokeObjectURL(profileImageObjectUrl);
+        }
+
+        profileImageObjectUrl = URL.createObjectURL(file);
+
+        const preview = $('profile-preview');
+
+        if (preview) {
+            preview.src = profileImageObjectUrl;
+            preview.classList.remove('hidden');
+        }
+
+        $('profile-icon')?.classList.add('hidden');
+        clearMessage($('profile-message'));
+    });
+
+    $('auth-modal')?.addEventListener('click', event => {
+        const modal = $('auth-modal');
+
+        if (
+            event.target === modal ||
+            event.target === modal.firstElementChild
+        ) {
+            closeAuthModal();
+        }
+    });
+
+    $('profile-modal')?.addEventListener('click', event => {
+        const modal = $('profile-modal');
+
+        if (
+            event.target === modal ||
+            event.target === modal.firstElementChild
+        ) {
+            closeProfileModal();
+        }
+    });
+
+    document.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
-            closeModal();
+            closeCalendarDrawer();
             closeCategoryDrawer();
+            closeEventModal();
             closeAuthModal();
             closeProfileModal();
         }
     });
 
-    renderCategoryList();
-    updateCategoryUI();
-    loadEvents();
-    checkAuth();
-});
+    const footerYear = $('footer-year');
 
-function applyFilters() {
-    const searchInput = document.getElementById('search');
-    const search = searchInput ? searchInput.value.toLowerCase() : '';
-    let filtered = allEvents.filter(ev =>
-        ev.name.toLowerCase().includes(search) ||
-        (ev.description && ev.description.toLowerCase().includes(search))
-    );
-    if (activeCategory !== 'all') {
-        filtered = filtered.filter(ev => ev.category === activeCategory);
+    if (footerYear) {
+        footerYear.textContent = new Date().getFullYear();
     }
-    renderEvents(filtered);
 }
+
+/* ============================================
+   SESSÃO E INICIALIZAÇÃO
+   ============================================ */
+
+async function handleAuthState() {
+    const {
+        data,
+        error
+    } = await supabaseClient.auth.getSession();
+
+    if (error) {
+        console.warn(
+            'Não foi possível recuperar a sessão:',
+            error.message
+        );
+    }
+
+    currentUser = data?.session?.user || null;
+
+    await refreshUserUI();
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentUser = session?.user || null;
+        isAdmin = false;
+
+        setTimeout(() => {
+            refreshUserUI().catch(error => {
+                console.warn(
+                    'Erro ao atualizar sessão:',
+                    error
+                );
+            });
+        }, 0);
+    });
+}
+
+async function initializeApp() {
+    setupPageEvents();
+    renderCategoryList();
+    refreshIcons();
+
+    if (
+        typeof supabaseClient === 'undefined' ||
+        !supabaseClient
+    ) {
+        showLoadingMessage(
+            'Configuração do Supabase não encontrada. Confira o arquivo supabase-config.js.'
+        );
+
+        window.hideLoadingScreen?.();
+        return;
+    }
+
+    await Promise.all([
+        loadEvents(),
+        handleAuthState()
+    ]);
+}
+
+document.addEventListener(
+    'DOMContentLoaded',
+    initializeApp
+);
