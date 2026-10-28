@@ -1,1544 +1,886 @@
-/* global supabaseClient */
-/* ============================================
-   SCRIPT PRINCIPAL - ALAGOINHAS EVENTOS
-   ============================================ */
+/* Eventos em Alagoinhas — interface, eventos, autenticação e notificações */
+(() => {
+  'use strict';
 
-const IMAGE_BUCKET = 'alagoinhas-images';
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+  const CATEGORY_META = {
+    shows: { label: 'Shows e Música', icon: 'mic-2' },
+    festas: { label: 'Festas e Forró', icon: 'party-popper' },
+    cultura: { label: 'Cultura e Arte', icon: 'palette' },
+    esportes: { label: 'Esportes', icon: 'trophy' },
+    gastronomia: { label: 'Gastronomia', icon: 'utensils' },
+    infantil: { label: 'Infantil', icon: 'baby' },
+    religioso: { label: 'Religioso', icon: 'church' },
+    outros: { label: 'Outros', icon: 'tag' }
+  };
 
-let allEvents = [];
-let activeCategory = 'all';
-let currentUser = null;
-let currentProfile = null;
-let isRegisterMode = false;
-let isAdmin = false;
-let profileImageObjectUrl = null;
+  const IMAGE_BUCKET = 'alagoinhas-images';
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+  const EVENT_TIME_ZONE = 'America/Bahia';
+  const FEATURED_INTERVAL_MS = 5500;
+  const supabaseClient = window.supabaseClient || null;
 
-const CATEGORIES = [
-    { id: 'all', label: 'Todos os eventos', icon: 'calendar-days' },
-    { id: 'shows', label: 'Shows e Música', icon: 'mic-2' },
-    { id: 'festas', label: 'Festas e Forró', icon: 'party-popper' },
-    { id: 'cultura', label: 'Cultura e Arte', icon: 'palette' },
-    { id: 'esportes', label: 'Esportes', icon: 'trophy' },
-    { id: 'gastronomia', label: 'Gastronomia', icon: 'utensils' },
-    { id: 'infantil', label: 'Infantil', icon: 'baby' },
-    { id: 'religioso', label: 'Religioso', icon: 'church' },
-    { id: 'outros', label: 'Outros', icon: 'tag' }
-];
+  const $ = (selector, parent = document) => parent.querySelector(selector);
+  const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
 
-const CATEGORY_META = Object.fromEntries(
-    CATEGORIES.map(item => [item.id, item])
-);
+  function localDateKey(value = new Date()) {
+    // Uma string YYYY-MM-DD já é uma data de calendário; não a interprete como UTC.
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = value instanceof Date ? value : new Date(value);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: EVENT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
 
-const QUICK_CATEGORY_META = {
-    all: {
-        label: 'Todos',
-        categories: null
-    },
-    'shows-festas': {
-        label: 'Shows & Festas',
-        categories: ['shows', 'festas']
-    },
-    'esportes-saude': {
-        label: 'Esportes & Saúde',
-        categories: ['esportes']
-    },
-    cultura: {
-        label: 'Cultura',
-        categories: ['cultura']
-    },
-    gastronomia: {
-        label: 'Gastronomia',
-        categories: ['gastronomia']
-    },
-    infantil: {
-        label: 'Infantil',
-        categories: ['infantil']
-    },
-    religioso: {
-        label: 'Religioso',
-        categories: ['religioso']
-    },
-    outros: {
-        label: 'Outros',
-        categories: ['outros']
+  function firstDayOfBahiaMonth(value = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: EVENT_TIME_ZONE, year: 'numeric', month: '2-digit'
+    }).formatToParts(value);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return new Date(Number(values.year), Number(values.month) - 1, 1);
+  }
+
+  const state = {
+    events: [],
+    visibleEvents: [],
+    selectedCategory: 'all',
+    search: '',
+    featuredIndex: 0,
+    featuredTimer: null,
+    session: null,
+    user: null,
+    authMode: 'login',
+    calendarDate: firstDayOfBahiaMonth(),
+    eventLifecycleTimer: null,
+    selectedCalendarDate: localDateKey(),
+    notificationKnownIds: new Set(),
+    notificationChannel: null,
+    notificationPolling: null,
+    profileObjectUrl: null,
+    loadingFailed: false
+  };
+
+  function refreshIcons() {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
     }
-};
+  }
 
-let calendarMonth = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1
-);
-
-let selectedCalendarDate = dateKey(new Date());
-
-const $ = id => document.getElementById(id);
-
-/* ============================================
-   FUNÇÕES GERAIS
-   ============================================ */
-
-function refreshIcons() {
-    if (
-        window.lucide &&
-        typeof window.lucide.createIcons === 'function'
-    ) {
-        window.lucide.createIcons();
-    }
-}
-
-function escapeHtml(value) {
+  function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[char]);
-}
+  }
 
-function safeUrl(value) {
+  function safeUrl(value) {
     try {
-        const url = new URL(String(value || ''), window.location.href);
-
-        return ['http:', 'https:'].includes(url.protocol)
-            ? url.href
-            : '';
-    } catch {
-        return '';
+      const url = new URL(String(value || ''), window.location.href);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch (_) {
+      return '';
     }
-}
+  }
 
-function dateKey(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
-}
-
-function eventDateKey(eventItem) {
-    if (!eventItem?.date) return '';
-
-    const date = new Date(eventItem.date);
-
-    return Number.isNaN(date.getTime())
-        ? ''
-        : dateKey(date);
-}
-
-function dateLabelFromKey(key) {
-    const [year, month, day] = key.split('-').map(Number);
-
-    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    });
-}
-
-function setMessage(element, message, type = 'error') {
-    if (!element) return;
-
-    element.textContent = message;
-
-    element.classList.remove(
-        'hidden',
-        'text-red-500',
-        'text-emerald-500',
-        'text-alagoinhas-500',
-        'bg-red-500/10',
-        'bg-emerald-500/10'
-    );
-
-    if (type === 'success') {
-        element.classList.add(
-            'text-emerald-500',
-            'bg-emerald-500/10'
-        );
-    } else if (type === 'info') {
-        element.classList.add('text-alagoinhas-500');
-    } else {
-        element.classList.add(
-            'text-red-500',
-            'bg-red-500/10'
-        );
-    }
-}
-
-function clearMessage(element) {
-    if (!element) return;
-
-    element.textContent = '';
-    element.classList.add('hidden');
-}
-
-function formatDate(value) {
-    if (!value) return 'Data a confirmar';
-
+  function parseEventDate(value) {
+    if (!value) return null;
     const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
 
-    if (Number.isNaN(date.getTime())) {
-        return 'Data a confirmar';
+  function getEventEnd(eventItem) {
+    return parseEventDate(eventItem.end_date || eventItem.date);
+  }
+
+  function isEventPast(eventItem, now = Date.now()) {
+    const end = getEventEnd(eventItem);
+    return Boolean(end && end.getTime() < now);
+  }
+
+  function isEventExpired(eventItem, now = Date.now()) {
+    const end = getEventEnd(eventItem);
+    return Boolean(end && now > end.getTime() + THREE_DAYS_MS);
+  }
+
+  function formatDate(value, options = {}) {
+    const date = parseEventDate(value);
+    if (!date) return 'Data não informada';
+    const formatOptions = {
+      day: '2-digit', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: EVENT_TIME_ZONE,
+      ...options
+    };
+    return new Intl.DateTimeFormat('pt-BR', formatOptions).format(date);
+  }
+
+  function formatTimeRange(eventItem) {
+    const start = parseEventDate(eventItem.date);
+    const end = parseEventDate(eventItem.end_date);
+    if (!start) return 'Data não informada';
+    const day = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: EVENT_TIME_ZONE }).format(start);
+    const startTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: EVENT_TIME_ZONE }).format(start);
+    const startDateKey = localDateKey(start);
+    const endDateKey = end ? localDateKey(end) : '';
+    if (!end || startDateKey !== endDateKey) return `${day} · ${startTime}`;
+    const endTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: EVENT_TIME_ZONE }).format(end);
+    return `${day} · ${startTime}–${endTime}`;
+  }
+
+  function showLoadingScreen() {
+    $('#loading-screen')?.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+  }
+
+  function hideLoadingScreen() {
+    const loading = $('#loading-screen');
+    if (!loading) return;
+    loading.classList.add('opacity-0', 'pointer-events-none');
+    window.setTimeout(() => loading.classList.add('hidden'), 450);
+  }
+  window.hideLoadingScreen = hideLoadingScreen;
+  window.closeAuthModal = () => closeModal($('#auth-modal'));
+  window.closeProfileModal = () => closeModal($('#profile-modal'));
+
+  function showNotice(message, kind = 'info') {
+    let notice = $('#site-notice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'site-notice';
+      notice.className = 'site-notice';
+      notice.setAttribute('role', 'status');
+      notice.setAttribute('aria-live', 'polite');
+      document.body.appendChild(notice);
     }
+    notice.dataset.kind = kind;
+    notice.textContent = message;
+    notice.classList.add('visible');
+    window.clearTimeout(notice._hideTimer);
+    notice._hideTimer = window.setTimeout(() => notice.classList.remove('visible'), 4200);
+  }
 
-    return date.toLocaleString('pt-BR', {
-        weekday: 'short',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
+  function categoryMatches(eventItem, selected) {
+    if (selected === 'all') return true;
+    const category = String(eventItem.category || 'outros').toLowerCase();
+    const grouped = {
+      'shows-festas': ['shows', 'festas'],
+      'esportes-saude': ['esportes'],
+      cultura: ['cultura'], gastronomia: ['gastronomia'], infantil: ['infantil'],
+      religioso: ['religioso'], outros: ['outros']
+    };
+    return (grouped[selected] || [selected]).includes(category);
+  }
 
-function formatPrice(eventItem) {
-    if (!eventItem.has_ticket) {
-        return 'Gratuito';
-    }
+  function renderEventCard(eventItem, { featured = false } = {}) {
+    const category = CATEGORY_META[eventItem.category] || CATEGORY_META.outros;
+    const image = safeUrl(eventItem.image) || 'perfil.png';
+    const past = isEventPast(eventItem);
+    const priceLabel = eventItem.has_ticket
+      ? `R$ ${Number(eventItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : 'Gratuito';
+    const description = String(eventItem.description || 'Confira os detalhes deste evento.');
+    return `
+      <article class="event-card${past ? ' is-past' : ''}${featured ? ' is-featured' : ''}" data-event-id="${escapeHtml(eventItem.id)}" tabindex="0" role="button" aria-label="Ver detalhes de ${escapeHtml(eventItem.name)}">
+        <div class="event-image-wrap">
+          <img class="event-image" src="${escapeHtml(image)}" alt="Imagem do evento ${escapeHtml(eventItem.name)}" loading="lazy" onerror="this.onerror=null;this.src='perfil.png'">
+        </div>
+        <div class="event-content">
+          ${past ? '<span class="past-event-badge"><i data-lucide="check-circle-2"></i> Já aconteceu</span>' : ''}
+          <div class="event-meta"><span><i data-lucide="calendar-days"></i>${escapeHtml(formatTimeRange(eventItem))}</span><span><i data-lucide="tag"></i>${escapeHtml(category.label)}</span></div>
+          <h3 class="event-title">${escapeHtml(eventItem.name || 'Evento sem título')}</h3>
+          <p class="event-desc">${escapeHtml(description)}</p>
+          <div class="event-card-footer"><span class="event-price ${eventItem.has_ticket ? '' : 'is-free'}"><i data-lucide="${eventItem.has_ticket ? 'ticket' : 'gift'}"></i>${escapeHtml(priceLabel)}</span><span class="event-details-link">Detalhes <i data-lucide="arrow-up-right"></i></span></div>
+        </div>
+      </article>`;
+  }
 
-    return `A partir de ${Number(eventItem.price || 0).toLocaleString(
-        'pt-BR',
-        {
-            style: 'currency',
-            currency: 'BRL'
+  function eventCardListener(container) {
+    $$('[data-event-id]', container).forEach(card => {
+      const open = () => openEventModal(card.dataset.eventId);
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          open();
         }
-    )}`;
-}
+      });
+    });
+  }
 
-function showLoadingMessage(message) {
-    const eventsContainer = $('events');
-
-    if (eventsContainer) {
-        eventsContainer.innerHTML = `
-            <div class="col-span-full text-center py-14 text-slate-500 dark:text-slate-400">
-                ${escapeHtml(message)}
-            </div>
-        `;
-    }
-}
-
-/* ============================================
-   EVENTOS
-   ============================================ */
-
-function renderEvents() {
-    const container = $('events');
-
-    if (!container) return;
-
-    const searchText = ($('search')?.value || '')
-        .trim()
-        .toLocaleLowerCase('pt-BR');
-
-    const allowedCategories =
-        QUICK_CATEGORY_META[activeCategory]?.categories;
-
+  function renderEvents() {
+    const allEvents = state.events.filter(eventItem => !isEventExpired(eventItem));
     const filtered = allEvents.filter(eventItem => {
-        const matchesCategory =
-            !allowedCategories ||
-            allowedCategories.includes(eventItem.category);
-
-        const combinedText = `
-            ${eventItem.name || ''}
-            ${eventItem.description || ''}
-            ${eventItem.category || ''}
-        `.toLocaleLowerCase('pt-BR');
-
-        return matchesCategory &&
-            combinedText.includes(searchText);
+      const matchesCategory = categoryMatches(eventItem, state.selectedCategory);
+      const haystack = `${eventItem.name || ''} ${eventItem.description || ''} ${eventItem.category || ''}`.toLocaleLowerCase('pt-BR');
+      return matchesCategory && (!state.search || haystack.includes(state.search.toLocaleLowerCase('pt-BR')));
     });
-
-    updateCategoryFilterUI();
-
-    if (!filtered.length) {
-        container.innerHTML = `
-            <div class="col-span-full text-center py-16 glass-card rounded-2xl">
-                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-alagoinhas-100 dark:bg-white/5 flex items-center justify-center">
-                    <i data-lucide="calendar-search" class="w-7 h-7 text-alagoinhas-500"></i>
-                </div>
-                <h3 class="font-display text-lg font-bold text-alagoinhas-900 dark:text-white">
-                    Nenhum evento encontrado
-                </h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                    Tente mudar sua busca ou categoria.
-                </p>
-                <button id="empty-clear-filters" type="button" class="mt-5 text-sm font-semibold text-alagoinhas-600 dark:text-alagoinhas-300 underline">
-                    Limpar filtros
-                </button>
-            </div>
-        `;
-
-        $('empty-clear-filters')?.addEventListener('click', () => {
-            activeCategory = 'all';
-
-            if ($('search')) {
-                $('search').value = '';
-            }
-
-            renderEvents();
-        });
-
-        refreshIcons();
-        return;
+    state.visibleEvents = filtered;
+    const eventsContainer = $('#events');
+    if (eventsContainer) {
+      eventsContainer.innerHTML = filtered.length
+        ? filtered.map(eventItem => renderEventCard(eventItem)).join('')
+        : `<div class="empty-events col-span-full"><i data-lucide="calendar-search"></i><h3>Nenhum evento encontrado</h3><p>Tente mudar a busca ou selecionar outra categoria.</p></div>`;
+      eventCardListener(eventsContainer);
     }
-
-    container.innerHTML = filtered.map((eventItem, index) => {
-        const category =
-            CATEGORY_META[eventItem.category] ||
-            CATEGORY_META.outros;
-
-        const imageUrl = safeUrl(eventItem.image);
-        const categoryLabel = category.label || 'Outros';
-        const dateLabel = formatDate(eventItem.date);
-
-        return `
-            <article
-                class="event-card glass-card rounded-2xl overflow-hidden cursor-pointer group fade-slide-in"
-                style="animation-delay:${index * 45}ms"
-                data-event-id="${escapeHtml(eventItem.id)}"
-                tabindex="0"
-                role="button"
-                aria-label="Ver evento ${escapeHtml(eventItem.name)}"
-            >
-                <div class="relative overflow-hidden bg-slate-100 dark:bg-white/5">
-                    ${
-                        imageUrl
-                            ? `
-                                <img
-                                    src="${escapeHtml(imageUrl)}"
-                                    alt="${escapeHtml(eventItem.name)}"
-                                    class="w-full h-56 object-cover transition-transform duration-500 group-hover:scale-105"
-                                    loading="lazy"
-                                    onerror="this.style.display='none'"
-                                >
-                            `
-                            : `
-                                <div class="w-full h-56 flex items-center justify-center">
-                                    <i data-lucide="calendar-days" class="w-12 h-12 text-alagoinhas-300"></i>
-                                </div>
-                            `
-                    }
-
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none"></div>
-
-                    <span class="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-white/95 text-alagoinhas-700 shadow">
-                        <i data-lucide="${category.icon}" class="w-3.5 h-3.5"></i>
-                        ${escapeHtml(categoryLabel)}
-                    </span>
-                </div>
-
-                <div class="p-5">
-                    <div class="flex items-start gap-3 mb-3">
-                        <div class="w-10 h-10 shrink-0 rounded-xl bg-alagoinhas-100 dark:bg-alagoinhas-500/10 text-alagoinhas-600 dark:text-alagoinhas-300 flex items-center justify-center">
-                            <i data-lucide="calendar-clock" class="w-5 h-5"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-xs font-semibold text-alagoinhas-600 dark:text-alagoinhas-300">
-                                ${escapeHtml(dateLabel)}
-                            </p>
-                            <h3 class="mt-1 font-display text-lg font-bold text-alagoinhas-900 dark:text-white line-clamp-2">
-                                ${escapeHtml(eventItem.name)}
-                            </h3>
-                        </div>
-                    </div>
-
-                    <p class="event-desc text-sm leading-6 line-clamp-3">
-                        ${escapeHtml(eventItem.description)}
-                    </p>
-
-                    <div class="mt-5 pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
-                        <span class="text-sm font-bold ${eventItem.has_ticket ? 'text-alagoinhas-600 dark:text-alagoinhas-300' : 'text-emerald-600 dark:text-emerald-400'}">
-                            ${escapeHtml(formatPrice(eventItem))}
-                        </span>
-                        <span class="text-xs font-bold text-alagoinhas-600 dark:text-alagoinhas-300 inline-flex items-center gap-1">
-                            Ver detalhes
-                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
-                        </span>
-                    </div>
-                </div>
-            </article>
-        `;
-    }).join('');
-
-    container.querySelectorAll('[data-event-id]').forEach(card => {
-        const open = () => openEventModal(card.dataset.eventId);
-
-        card.addEventListener('click', open);
-
-        card.addEventListener('keydown', event => {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                open();
-            }
-        });
+    const pill = $('#active-category-pill');
+    if (pill) {
+      const categoryButton = $(`[data-quick-category="${CSS.escape(state.selectedCategory)}"]`);
+      if (state.selectedCategory !== 'all' && categoryButton) {
+        pill.classList.remove('hidden');
+        pill.classList.add('flex');
+        $('#active-category-text').textContent = categoryButton.textContent.trim();
+      } else {
+        pill.classList.add('hidden');
+        pill.classList.remove('flex');
+      }
+    }
+    $$('.quick-category').forEach(button => {
+      const active = button.dataset.quickCategory === state.selectedCategory;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
-
-    refreshIcons();
-}
-
-async function loadEvents() {
-    showLoadingMessage('Carregando eventos...');
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('events')
-            .select('*')
-            .order('date', { ascending: true });
-
-        if (error) throw error;
-
-        allEvents = data || [];
-
-        renderEvents();
-        renderCalendar();
-    } catch (error) {
-        console.error('Erro ao carregar eventos:', error);
-
-        showLoadingMessage(
-            'Não foi possível carregar os eventos. Atualize a página ou tente novamente mais tarde.'
-        );
-    } finally {
-        window.hideLoadingScreen?.();
-    }
-}
-
-/* ============================================
-   FILTROS DE CATEGORIA
-   ============================================ */
-
-function updateCategoryFilterUI() {
-    const active =
-        QUICK_CATEGORY_META[activeCategory] ||
-        QUICK_CATEGORY_META.all;
-
-    const pill = $('active-category-pill');
-    const text = $('active-category-text');
-
-    if (activeCategory === 'all') {
-        pill?.classList.add('hidden');
-    } else {
-        pill?.classList.remove('hidden');
-        pill?.classList.add('flex');
-
-        if (text) {
-            text.textContent = active.label;
-        }
-    }
-
-    document.querySelectorAll('[data-quick-category]').forEach(button => {
-        const selected =
-            button.dataset.quickCategory === activeCategory;
-
-        button.classList.toggle('active', selected);
-        button.setAttribute('aria-pressed', String(selected));
-    });
-
-    document.querySelectorAll('[data-category]').forEach(button => {
-        const selected =
-            button.dataset.category === activeCategory;
-
-        button.classList.toggle('bg-alagoinhas-100', selected);
-        button.classList.toggle('dark:bg-white/10', selected);
-        button.classList.toggle('border-alagoinhas-300', selected);
-        button.setAttribute('aria-pressed', String(selected));
-    });
-}
-
-function renderCategoryList() {
-    const container = $('category-list');
-
-    if (!container) return;
-
-    container.innerHTML = CATEGORIES.map(category => `
-        <button
-            type="button"
-            data-category="${category.id}"
-            class="w-full flex items-center gap-3 rounded-xl border border-transparent px-4 py-3 text-left text-sm font-semibold text-alagoinhas-800 dark:text-slate-200 hover:bg-alagoinhas-50 dark:hover:bg-white/5 transition-all"
-        >
-            <span class="w-9 h-9 rounded-xl bg-alagoinhas-100 dark:bg-white/5 text-alagoinhas-600 dark:text-alagoinhas-300 flex items-center justify-center">
-                <i data-lucide="${category.icon}" class="w-4 h-4"></i>
-            </span>
-            <span class="flex-1">${escapeHtml(category.label)}</span>
-            <i data-lucide="check" class="w-4 h-4 category-check ${category.id === activeCategory ? '' : 'hidden'}"></i>
-        </button>
-    `).join('');
-
-    container.querySelectorAll('[data-category]').forEach(button => {
-        button.addEventListener('click', () => {
-            activeCategory = button.dataset.category;
-            closeCategoryDrawer();
-            renderEvents();
-        });
-    });
-
-    refreshIcons();
-}
-
-function openCategoryDrawer() {
-    $('category-drawer')?.classList.add('open');
-}
-
-function closeCategoryDrawer() {
-    $('category-drawer')?.classList.remove('open');
-}
-
-/* ============================================
-   DETALHES DO EVENTO
-   ============================================ */
-
-function openEventModal(id) {
-    const eventItem = allEvents.find(
-        item => String(item.id) === String(id)
-    );
-
-    if (!eventItem) return;
-
-    const imageUrl = safeUrl(eventItem.image);
-    const image = $('modal-img');
-
-    if (image) {
-        image.src = imageUrl;
-        image.alt = eventItem.name || 'Foto do evento';
-        image.classList.toggle('hidden', !imageUrl);
-    }
-
-    $('modal-title').textContent = eventItem.name || 'Evento';
-
-    $('modal-date').innerHTML = `
-        <i data-lucide="calendar-clock" class="w-4 h-4"></i>
-        ${escapeHtml(formatDate(eventItem.date))}
-    `;
-
-    $('modal-desc').textContent =
-        eventItem.description || 'Sem descrição disponível.';
-
-    $('modal-price').textContent = formatPrice(eventItem);
-
-    const category =
-        CATEGORY_META[eventItem.category] ||
-        CATEGORY_META.outros;
-
-    const categoryBadge = $('modal-category');
-
-    if (categoryBadge) {
-        categoryBadge.innerHTML = `
-            <span class="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-alagoinhas-700 shadow">
-                <i data-lucide="${category.icon}" class="w-4 h-4"></i>
-                ${escapeHtml(category.label)}
-            </span>
-        `;
-
-        categoryBadge.classList.remove('hidden');
-    }
-
-    const link = $('modal-link');
-    const ticketUrl = safeUrl(eventItem.link);
-
-    if (link) {
-        if (eventItem.has_ticket && ticketUrl) {
-            link.href = ticketUrl;
-            link.classList.remove('hidden');
-            link.classList.add('inline-flex');
-            link.rel = 'noopener noreferrer';
-        } else {
-            link.removeAttribute('href');
-            link.classList.add('hidden');
-            link.classList.remove('inline-flex');
-        }
-    }
-
-    $('modal')?.classList.remove('hidden');
-    $('modal')?.classList.add('flex');
-
-    document.body.classList.add('overflow-hidden');
-
-    refreshIcons();
-}
-
-function closeEventModal() {
-    $('modal')?.classList.add('hidden');
-    $('modal')?.classList.remove('flex');
-
-    document.body.classList.remove('overflow-hidden');
-}
-
-/* ============================================
-   CALENDÁRIO DO MENU ☰
-   ============================================ */
-
-function openCalendarDrawer() {
-    $('calendar-drawer')?.classList.add('open');
-    $('calendar-drawer')?.setAttribute('aria-hidden', 'false');
-
+    renderFeatured();
     renderCalendar();
-}
-
-function closeCalendarDrawer() {
-    $('calendar-drawer')?.classList.remove('open');
-    $('calendar-drawer')?.setAttribute('aria-hidden', 'true');
-}
-
-function renderCalendar() {
-    const title = $('calendar-month');
-    const grid = $('calendar-grid');
-
-    if (!title || !grid) return;
-
-    title.textContent = calendarMonth.toLocaleDateString('pt-BR', {
-        month: 'long',
-        year: 'numeric'
-    });
-
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-
-    const firstWeekday = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const todayKey = dateKey(new Date());
-
-    const eventDays = new Set(
-        allEvents.map(eventDateKey).filter(Boolean)
-    );
-
-    const cells = [];
-
-    for (let i = 0; i < firstWeekday; i++) {
-        cells.push(
-            '<span class="calendar-day empty" aria-hidden="true"></span>'
-        );
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        const key = dateKey(date);
-        const hasEvents = eventDays.has(key);
-
-        const classes = [
-            'calendar-day',
-            key === selectedCalendarDate ? 'selected' : '',
-            key === todayKey ? 'today' : ''
-        ].filter(Boolean).join(' ');
-
-        cells.push(`
-            <button
-                type="button"
-                class="${classes}"
-                data-calendar-date="${key}"
-                aria-label="${day}${hasEvents ? ', tem eventos' : ''}"
-                aria-pressed="${key === selectedCalendarDate}"
-            >
-                <span>${day}</span>
-                ${
-                    hasEvents
-                        ? '<span class="event-dot" aria-hidden="true"></span>'
-                        : '<span class="h-[5px]"></span>'
-                }
-            </button>
-        `);
-    }
-
-    grid.innerHTML = cells.join('');
-
-    grid.querySelectorAll('[data-calendar-date]').forEach(button => {
-        button.addEventListener('click', () => {
-            selectedCalendarDate = button.dataset.calendarDate;
-
-            renderCalendar();
-            renderCalendarEventsForDate(selectedCalendarDate);
-        });
-    });
-
-    renderCalendarEventsForDate(selectedCalendarDate);
     refreshIcons();
-}
+  }
 
-function renderCalendarEventsForDate(key) {
-    const list = $('calendar-event-list');
-    const title = $('calendar-selected-title');
-    const count = $('calendar-selected-count');
+  function renderFeatured() {
+    const track = $('#featured-events');
+    const dots = $('#featured-dots');
+    const section = $('#featured-section');
+    if (!track || !dots || !section) return;
+    const now = Date.now();
+    const upcoming = state.events
+      .filter(eventItem => !isEventExpired(eventItem) && !isEventPast(eventItem, now))
+      .sort((a, b) => (parseEventDate(a.date)?.getTime() ?? Infinity) - (parseEventDate(b.date)?.getTime() ?? Infinity))
+      .slice(0, 6);
 
-    if (!list) return;
-
-    if (!key) {
-        list.innerHTML = `
-            <p class="py-4 text-slate-500">
-                Selecione uma data no calendário.
-            </p>
-        `;
-
-        if (title) title.textContent = 'Eventos do dia';
-        if (count) count.textContent = '';
-
-        return;
+    if (!upcoming.length) {
+      section.classList.add('hidden');
+      track.innerHTML = '';
+      dots.innerHTML = '';
+      stopFeaturedCarousel();
+      return;
     }
-
-    const events = allEvents
-        .filter(eventItem => eventDateKey(eventItem) === key)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (title) {
-        title.textContent = dateLabelFromKey(key);
-    }
-
-    if (count) {
-        count.textContent = `${events.length} ${
-            events.length === 1 ? 'evento' : 'eventos'
-        }`;
-    }
-
-    if (!events.length) {
-        list.innerHTML = `
-            <p class="py-4 text-slate-500">
-                Nenhum evento nesta data.
-            </p>
-        `;
-        return;
-    }
-
-    list.innerHTML = events.map(eventItem => {
-        const time = new Date(eventItem.date).toLocaleTimeString(
-            'pt-BR',
-            {
-                hour: '2-digit',
-                minute: '2-digit'
-            }
-        );
-
-        const categoryLabel =
-            CATEGORY_META[eventItem.category]?.label || 'Outros';
-
-        return `
-            <button
-                type="button"
-                class="calendar-event-row w-full text-left hover:bg-white/5 rounded-lg px-2 -mx-2"
-                data-calendar-event="${escapeHtml(eventItem.id)}"
-            >
-                <span class="mt-1 w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
-                <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-bold text-white">
-                        ${escapeHtml(eventItem.name)}
-                    </span>
-                    <span class="block text-xs text-slate-400 mt-1">
-                        ${time} · ${escapeHtml(categoryLabel)}
-                    </span>
-                </span>
-                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 mt-1"></i>
-            </button>
-        `;
-    }).join('');
-
-    list.querySelectorAll('[data-calendar-event]').forEach(button => {
-        button.addEventListener('click', () => {
-            closeCalendarDrawer();
-            openEventModal(button.dataset.calendarEvent);
-        });
-    });
-
+    section.classList.remove('hidden');
+    state.featuredIndex = Math.min(state.featuredIndex, upcoming.length - 1);
+    track.innerHTML = upcoming.map(eventItem => renderEventCard(eventItem, { featured: true })).join('');
+    track.style.transform = `translateX(-${state.featuredIndex * 100}%)`;
+    dots.innerHTML = upcoming.map((eventItem, index) => `<button class="featured-dot" type="button" data-featured-index="${index}" aria-label="Mostrar destaque ${index + 1}: ${escapeHtml(eventItem.name)}" aria-current="${index === state.featuredIndex ? 'true' : 'false'}"></button>`).join('');
+    $$('[data-featured-index]', dots).forEach(button => button.addEventListener('click', () => {
+      state.featuredIndex = Number(button.dataset.featuredIndex);
+      updateFeaturedPosition();
+      restartFeaturedCarousel();
+    }));
+    eventCardListener(track);
+    track.querySelectorAll('img').forEach(img => { img.draggable = false; });
     refreshIcons();
-}
+    restartFeaturedCarousel();
+  }
 
-/* ============================================
-   LOGIN E CADASTRO
-   ============================================ */
+  function updateFeaturedPosition() {
+    const track = $('#featured-events');
+    if (!track) return;
+    const count = track.children.length;
+    if (!count) return;
+    state.featuredIndex = ((state.featuredIndex % count) + count) % count;
+    track.style.transform = `translateX(-${state.featuredIndex * 100}%)`;
+    $$('[data-featured-index]').forEach((dot, index) => {
+      dot.setAttribute('aria-current', String(index === state.featuredIndex));
+    });
+  }
 
-function openAuthModal(register = false) {
-    isRegisterMode = Boolean(register);
-    updateAuthModeUI();
+  function stopFeaturedCarousel() {
+    if (state.featuredTimer) window.clearInterval(state.featuredTimer);
+    state.featuredTimer = null;
+  }
 
-    $('auth-modal')?.classList.remove('hidden');
-    $('auth-modal')?.classList.add('flex');
+  function restartFeaturedCarousel() {
+    stopFeaturedCarousel();
+    if ($('#featured-events')?.children.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    state.featuredTimer = window.setInterval(() => {
+      state.featuredIndex += 1;
+      updateFeaturedPosition();
+    }, FEATURED_INTERVAL_MS);
+  }
 
-    clearMessage($('auth-message'));
-}
+  function showModal(modal) {
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('modal-open');
+    refreshIcons();
+  }
 
-function closeAuthModal() {
-    $('auth-modal')?.classList.add('hidden');
-    $('auth-modal')?.classList.remove('flex');
-}
+  function closeModal(modal) {
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if (!$('.fixed.inset-0:not(.hidden)[role="dialog"]')) document.body.classList.remove('modal-open');
+  }
 
-function updateAuthModeUI() {
-    const title = $('auth-title');
-    const submit = $('auth-submit');
-    const toggle = $('toggle-auth-mode');
-
-    if (title) {
-        title.textContent = isRegisterMode ? 'Criar conta' : 'Entrar';
-    }
-
-    if (submit) {
-        submit.textContent = isRegisterMode ? 'Criar conta' : 'Entrar';
-    }
-
-    if (toggle) {
-        toggle.textContent = isRegisterMode
-            ? 'Já tem conta? Entrar'
-            : 'Não tem conta? Criar uma';
-    }
-}
-
-/* ============================================
-   PERFIL DO USUÁRIO
-   ============================================ */
-
-async function getOrCreateProfile(user) {
-    if (!user) return null;
-
-    const metadata = user.user_metadata || {};
-
-    const metadataName =
-        metadata.full_name ||
-        metadata.name ||
-        user.email?.split('@')[0] ||
-        'Usuário';
-
-    const metadataAvatar =
-        metadata.avatar_url ||
-        metadata.picture ||
-        null;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('profiles')
-            .select('id,name,avatar_url')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (error) throw error;
-
-        if (data) {
-            return {
-                ...data,
-                name:
-                    metadata.full_name ||
-                    metadata.name ||
-                    data.name ||
-                    metadataName,
-                avatar_url:
-                    metadataAvatar ||
-                    data.avatar_url ||
-                    null
-            };
-        }
-
-        const newProfile = {
-            id: user.id,
-            name: metadataName,
-            avatar_url: metadataAvatar
-        };
-
-        const { error: insertError } = await supabaseClient
-            .from('profiles')
-            .upsert(newProfile, {
-                onConflict: 'id'
-            });
-
-        if (insertError) {
-            console.warn(
-                'Perfil será mantido nos metadados da conta:',
-                insertError.message
-            );
-        }
-
-        return newProfile;
-    } catch (error) {
-        console.warn(
-            'Tabela profiles indisponível; usando metadados da conta:',
-            error.message
-        );
-
-        return {
-            id: user.id,
-            name: metadataName,
-            avatar_url: metadataAvatar
-        };
-    }
-}
-
-async function refreshUserUI() {
-    const loggedIn = Boolean(currentUser);
-
-    $('user-menu')?.classList.toggle('hidden', !loggedIn);
-    $('login-button')?.classList.toggle('hidden', loggedIn);
-    $('admin-link')?.classList.toggle('hidden', !isAdmin);
-
-    if (!loggedIn) {
-        currentProfile = null;
-        $('user-dropdown')?.classList.add('hidden');
-        return;
-    }
-
-    currentProfile = await getOrCreateProfile(currentUser);
-
-    const displayName =
-        currentProfile?.name ||
-        currentUser.user_metadata?.full_name ||
-        currentUser.user_metadata?.name ||
-        currentUser.email?.split('@')[0] ||
-        'Usuário';
-
-    const avatarUrl = safeUrl(
-        currentUser.user_metadata?.avatar_url ||
-        currentUser.user_metadata?.picture ||
-        currentProfile?.avatar_url ||
-        ''
-    );
-
-    if ($('dropdown-name')) {
-        $('dropdown-name').textContent = displayName;
-    }
-
-    if ($('dropdown-email')) {
-        $('dropdown-email').textContent = currentUser.email || '';
-    }
-
-    const avatar = $('user-avatar');
-    const avatarIcon = $('user-avatar-icon');
-
-    if (avatar && avatarUrl) {
-        avatar.onerror = () => {
-            avatar.classList.add('hidden');
-            avatar.removeAttribute('src');
-            avatarIcon?.classList.remove('hidden');
-        };
-
-        avatar.onload = () => {
-            avatarIcon?.classList.add('hidden');
-        };
-
-        avatar.src = avatarUrl;
-        avatar.alt = `Foto de ${displayName}`;
-        avatar.classList.remove('hidden');
-        avatarIcon?.classList.add('hidden');
+  function openEventModal(id) {
+    const eventItem = state.events.find(item => String(item.id) === String(id));
+    if (!eventItem) return;
+    $('#modal-title').textContent = eventItem.name || 'Evento';
+    $('#modal-date').innerHTML = `<i data-lucide="calendar-clock" class="w-4 h-4"></i>${escapeHtml(formatTimeRange(eventItem))}`;
+    $('#modal-desc').textContent = eventItem.description || 'Não há descrição disponível para este evento.';
+    $('#modal-img').src = safeUrl(eventItem.image) || 'perfil.png';
+    $('#modal-img').alt = `Imagem do evento ${eventItem.name || ''}`;
+    const category = CATEGORY_META[eventItem.category] || CATEGORY_META.outros;
+    $('#modal-category').textContent = category.label;
+    $('#modal-category').classList.remove('hidden');
+    $('#modal-price').textContent = eventItem.has_ticket
+      ? `Ingresso: R$ ${Number(eventItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : 'Evento gratuito';
+    const link = $('#modal-link');
+    const safeTicketLink = safeUrl(eventItem.link);
+    if (safeTicketLink && eventItem.has_ticket) {
+      link.href = safeTicketLink;
+      link.classList.remove('hidden');
+      link.classList.add('inline-flex');
     } else {
-        avatar?.classList.add('hidden');
-        avatar?.removeAttribute('src');
-        avatarIcon?.classList.remove('hidden');
+      link.removeAttribute('href');
+      link.classList.add('hidden');
+      link.classList.remove('inline-flex');
     }
-
-    try {
-        const { data: adminData, error: adminError } = await supabaseClient
-            .from('admins')
-            .select('email')
-            .eq('email', currentUser.email)
-            .maybeSingle();
-
-        isAdmin = !adminError && Boolean(adminData);
-    } catch {
-        isAdmin = false;
+    let pastBadge = $('#modal-past-badge');
+    if (!pastBadge && $('#modal-title')) {
+      pastBadge = document.createElement('span');
+      pastBadge.id = 'modal-past-badge';
+      pastBadge.className = 'past-event-badge mb-4';
+      $('#modal-title').parentElement.insertBefore(pastBadge, $('#modal-title'));
     }
-
-    $('admin-link')?.classList.toggle('hidden', !isAdmin);
-
-    refreshIcons();
-}
-
-function validateSelectedImage(file) {
-    if (!file) {
-        throw new Error('Selecione uma imagem.');
+    if (pastBadge) {
+      pastBadge.innerHTML = '<i data-lucide="check-circle-2"></i> Já aconteceu';
+      pastBadge.classList.toggle('hidden', !isEventPast(eventItem));
     }
+    showModal($('#modal'));
+  }
 
-    const allowedTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-        'image/gif'
+  function openDrawer(id) {
+    const drawer = $(id);
+    if (!drawer) return;
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('drawer-open');
+  }
+
+  function closeDrawer(id) {
+    const drawer = $(id);
+    if (!drawer) return;
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (!$('.fixed.inset-0.open')) document.body.classList.remove('drawer-open');
+  }
+
+  function renderCategoryDrawer() {
+    const container = $('#category-list');
+    if (!container) return;
+    const items = [
+      ['all', 'Todos os eventos', 'calendar-days'], ['shows-festas', 'Shows & Festas', 'music'],
+      ['esportes-saude', 'Esportes & Saúde', 'trophy'], ['cultura', 'Cultura', 'palette'],
+      ['gastronomia', 'Gastronomia', 'utensils'], ['infantil', 'Infantil', 'baby'],
+      ['religioso', 'Religioso', 'church'], ['outros', 'Outros', 'shapes']
     ];
-
-    if (!allowedTypes.includes(file.type)) {
-        throw new Error('Use uma imagem JPG, PNG, WEBP ou GIF.');
-    }
-
-    if (file.size > MAX_IMAGE_SIZE) {
-        throw new Error('A imagem deve ter no máximo 5 MB.');
-    }
-}
-
-async function uploadProfileImage(file) {
-    if (!file) {
-        return currentUser?.user_metadata?.avatar_url ||
-            currentProfile?.avatar_url ||
-            null;
-    }
-
-    validateSelectedImage(file);
-
-    const extension = (file.name.split('.').pop() || 'jpg')
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '') || 'jpg';
-
-    const uniqueId = window.crypto?.randomUUID
-        ? window.crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    const path = `${currentUser.id}/${uniqueId}.${extension}`;
-
-    const { error } = await supabaseClient.storage
-        .from(IMAGE_BUCKET)
-        .upload(path, file, {
-            cacheControl: '3600',
-            contentType: file.type,
-            upsert: false
-        });
-
-    if (error) {
-        throw new Error(
-            `Não foi possível enviar a foto: ${error.message}`
-        );
-    }
-
-    const { data } = supabaseClient
-        .storage
-        .from(IMAGE_BUCKET)
-        .getPublicUrl(path);
-
-    if (!data?.publicUrl) {
-        throw new Error(
-            'O Supabase não retornou o endereço da foto.'
-        );
-    }
-
-    return data.publicUrl;
-}
-
-function openProfileModal() {
-    if (!currentUser) {
-        openAuthModal(false);
-        return;
-    }
-
-    const nameInput = $('profile-name');
-
-    if (nameInput) {
-        nameInput.value =
-            currentProfile?.name ||
-            currentUser.user_metadata?.full_name ||
-            currentUser.email?.split('@')[0] ||
-            '';
-    }
-
-    const fileInput = $('profile-avatar');
-
-    if (fileInput) {
-        fileInput.value = '';
-    }
-
-    const preview = $('profile-preview');
-    const icon = $('profile-icon');
-
-    const avatarUrl = safeUrl(
-        currentUser.user_metadata?.avatar_url ||
-        currentUser.user_metadata?.picture ||
-        currentProfile?.avatar_url ||
-        ''
-    );
-
-    if (preview && avatarUrl) {
-        preview.src = avatarUrl;
-        preview.classList.remove('hidden');
-        icon?.classList.add('hidden');
-    } else {
-        preview?.classList.add('hidden');
-        preview?.removeAttribute('src');
-        icon?.classList.remove('hidden');
-    }
-
-    clearMessage($('profile-message'));
-
-    $('profile-modal')?.classList.remove('hidden');
-    $('profile-modal')?.classList.add('flex');
-}
-
-function closeProfileModal() {
-    $('profile-modal')?.classList.add('hidden');
-    $('profile-modal')?.classList.remove('flex');
-
-    if (profileImageObjectUrl) {
-        URL.revokeObjectURL(profileImageObjectUrl);
-    }
-
-    profileImageObjectUrl = null;
-}
-
-window.closeProfileModal = closeProfileModal;
-
-async function handleProfileSubmit(event) {
-    event.preventDefault();
-
-    if (!currentUser) {
-        setMessage(
-            $('profile-message'),
-            'Entre na sua conta para editar o perfil.'
-        );
-        return;
-    }
-
-    const button = $('profile-submit');
-    const file = $('profile-avatar')?.files?.[0] || null;
-    const name = ($('profile-name')?.value || '').trim();
-
-    if (!name) {
-        setMessage($('profile-message'), 'Informe seu nome.');
-        return;
-    }
-
-    button.disabled = true;
-    button.textContent = 'Salvando...';
-
-    try {
-        const avatarUrl = await uploadProfileImage(file);
-
-        const userMetadata = {
-            ...currentUser.user_metadata,
-            full_name: name,
-            name,
-            avatar_url: avatarUrl
-        };
-
-        const {
-            data: authData,
-            error: authError
-        } = await supabaseClient.auth.updateUser({
-            data: userMetadata
-        });
-
-        if (authError) {
-            throw authError;
-        }
-
-        if (authData?.user) {
-            currentUser = authData.user;
-        }
-
-        const profileData = {
-            id: currentUser.id,
-            name,
-            avatar_url: avatarUrl,
-            updated_at: new Date().toISOString()
-        };
-
-        // Os metadados da conta já foram atualizados.
-        // Esta gravação tenta sincronizar também a tabela profiles.
-        const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .upsert(profileData, {
-                onConflict: 'id'
-            });
-
-        if (profileError) {
-            console.warn(
-                'Perfil salvo nos metadados; tabela profiles não sincronizada:',
-                profileError.message
-            );
-        }
-
-        currentProfile = profileData;
-
-        await refreshUserUI();
-
-        setMessage(
-            $('profile-message'),
-            'Perfil atualizado com sucesso!',
-            'success'
-        );
-
-        setTimeout(closeProfileModal, 900);
-    } catch (error) {
-        console.error('Erro ao atualizar perfil:', error);
-
-        setMessage(
-            $('profile-message'),
-            error.message || 'Não foi possível salvar seu perfil.'
-        );
-    } finally {
-        button.disabled = false;
-        button.textContent = 'Salvar Alterações';
-    }
-}
-
-/* ============================================
-   AUTENTICAÇÃO
-   ============================================ */
-
-async function handleAuthSubmit(event) {
-    event.preventDefault();
-
-    const email = ($('auth-email')?.value || '')
-        .trim()
-        .toLowerCase();
-
-    const password = $('auth-password')?.value || '';
-    const button = $('auth-submit');
-
-    if (!email || !password) {
-        setMessage(
-            $('auth-message'),
-            'Preencha o e-mail e a senha.'
-        );
-        return;
-    }
-
-    if (isRegisterMode && password.length < 6) {
-        setMessage(
-            $('auth-message'),
-            'A senha precisa ter pelo menos 6 caracteres.'
-        );
-        return;
-    }
-
-    button.disabled = true;
-    button.textContent = isRegisterMode
-        ? 'Criando conta...'
-        : 'Entrando...';
-
-    clearMessage($('auth-message'));
-
-    try {
-        const result = isRegisterMode
-            ? await supabaseClient.auth.signUp({
-                email,
-                password
-            })
-            : await supabaseClient.auth.signInWithPassword({
-                email,
-                password
-            });
-
-        if (result.error) {
-            throw result.error;
-        }
-
-        if (isRegisterMode && !result.data.session) {
-            setMessage(
-                $('auth-message'),
-                'Conta criada! Confira seu e-mail para confirmar o cadastro.',
-                'success'
-            );
-
-            return;
-        }
-
-        closeAuthModal();
-        $('auth-form')?.reset();
-    } catch (error) {
-        setMessage(
-            $('auth-message'),
-            error.message || 'Não foi possível autenticar.'
-        );
-    } finally {
-        button.disabled = false;
-        updateAuthModeUI();
-    }
-}
-
-async function signInWithGoogle() {
-    const button = $('google-login');
-
-    if (button) {
-        button.disabled = true;
-    }
-
-    try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: window.location.href.split('#')[0]
-            }
-        });
-
-        if (error) {
-            throw error;
-        }
-    } catch (error) {
-        setMessage(
-            $('auth-message'),
-            error.message || 'Não foi possível entrar com Google.'
-        );
-
-        if (button) {
-            button.disabled = false;
-        }
-    }
-}
-
-async function logoutUser() {
-    const { error } = await supabaseClient.auth.signOut();
-
-    if (error) {
-        alert(`Erro ao sair: ${error.message}`);
-    }
-
-    $('user-dropdown')?.classList.add('hidden');
-}
-
-/* ============================================
-   EVENTOS DOS BOTÕES E DA PÁGINA
-   ============================================ */
-
-function setupPageEvents() {
-    $('search')?.addEventListener('input', renderEvents);
-
-    document.querySelectorAll('[data-quick-category]').forEach(button => {
-        button.addEventListener('click', () => {
-            activeCategory = button.dataset.quickCategory;
-            renderEvents();
-        });
-    });
-
-    $('menu-button')?.addEventListener(
-        'click',
-        openCalendarDrawer
-    );
-
-    $('calendar-close')?.addEventListener(
-        'click',
-        closeCalendarDrawer
-    );
-
-    $('calendar-backdrop')?.addEventListener(
-        'click',
-        closeCalendarDrawer
-    );
-
-    $('calendar-prev')?.addEventListener('click', () => {
-        calendarMonth = new Date(
-            calendarMonth.getFullYear(),
-            calendarMonth.getMonth() - 1,
-            1
-        );
-
-        selectedCalendarDate = dateKey(calendarMonth);
-
-        renderCalendar();
-    });
-
-    $('calendar-next')?.addEventListener('click', () => {
-        calendarMonth = new Date(
-            calendarMonth.getFullYear(),
-            calendarMonth.getMonth() + 1,
-            1
-        );
-
-        selectedCalendarDate = dateKey(calendarMonth);
-
-        renderCalendar();
-    });
-
-    $('category-drawer-btn')?.addEventListener(
-        'click',
-        openCategoryDrawer
-    );
-
-    $('close-category')?.addEventListener(
-        'click',
-        closeCategoryDrawer
-    );
-
-    $('category-backdrop')?.addEventListener(
-        'click',
-        closeCategoryDrawer
-    );
-
-    $('clear-category')?.addEventListener('click', () => {
-        activeCategory = 'all';
-        renderEvents();
-    });
-
-    $('close-modal')?.addEventListener(
-        'click',
-        closeEventModal
-    );
-
-    $('modal-backdrop')?.addEventListener(
-        'click',
-        closeEventModal
-    );
-
-    $('login-button')?.addEventListener(
-        'click',
-        () => openAuthModal(false)
-    );
-
-    $('toggle-auth-mode')?.addEventListener('click', () => {
-        isRegisterMode = !isRegisterMode;
-        updateAuthModeUI();
-        clearMessage($('auth-message'));
-    });
-
-    $('auth-form')?.addEventListener(
-        'submit',
-        handleAuthSubmit
-    );
-
-    $('google-login')?.addEventListener(
-        'click',
-        signInWithGoogle
-    );
-
-    $('user-button')?.addEventListener('click', event => {
-        event.stopPropagation();
-        $('user-dropdown')?.classList.toggle('hidden');
-    });
-
-    $('user-dropdown')?.addEventListener('click', event => {
-        event.stopPropagation();
-    });
-
-    document.addEventListener('click', () => {
-        $('user-dropdown')?.classList.add('hidden');
-    });
-
-    $('edit-profile-button')?.addEventListener('click', () => {
-        $('user-dropdown')?.classList.add('hidden');
-        openProfileModal();
-    });
-
-    $('logout-button')?.addEventListener(
-        'click',
-        logoutUser
-    );
-
-    $('profile-form')?.addEventListener(
-        'submit',
-        handleProfileSubmit
-    );
-
-    $('profile-avatar')?.addEventListener('change', event => {
-        const file = event.target.files?.[0];
-
-        if (!file) return;
-
-        try {
-            validateSelectedImage(file);
-        } catch (error) {
-            event.target.value = '';
-
-            setMessage(
-                $('profile-message'),
-                error.message
-            );
-
-            return;
-        }
-
-        if (profileImageObjectUrl) {
-            URL.revokeObjectURL(profileImageObjectUrl);
-        }
-
-        profileImageObjectUrl = URL.createObjectURL(file);
-
-        const preview = $('profile-preview');
-
-        if (preview) {
-            preview.src = profileImageObjectUrl;
-            preview.classList.remove('hidden');
-        }
-
-        $('profile-icon')?.classList.add('hidden');
-        clearMessage($('profile-message'));
-    });
-
-    $('auth-modal')?.addEventListener('click', event => {
-        const modal = $('auth-modal');
-
-        if (
-            event.target === modal ||
-            event.target === modal.firstElementChild
-        ) {
-            closeAuthModal();
-        }
-    });
-
-    $('profile-modal')?.addEventListener('click', event => {
-        const modal = $('profile-modal');
-
-        if (
-            event.target === modal ||
-            event.target === modal.firstElementChild
-        ) {
-            closeProfileModal();
-        }
-    });
-
-    document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            closeCalendarDrawer();
-            closeCategoryDrawer();
-            closeEventModal();
-            closeAuthModal();
-            closeProfileModal();
-        }
-    });
-
-    const footerYear = $('footer-year');
-
-    if (footerYear) {
-        footerYear.textContent = new Date().getFullYear();
-    }
-}
-
-/* ============================================
-   SESSÃO E INICIALIZAÇÃO
-   ============================================ */
-
-async function handleAuthState() {
-    const {
-        data,
-        error
-    } = await supabaseClient.auth.getSession();
-
-    if (error) {
-        console.warn(
-            'Não foi possível recuperar a sessão:',
-            error.message
-        );
-    }
-
-    currentUser = data?.session?.user || null;
-
-    await refreshUserUI();
-
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-        currentUser = session?.user || null;
-        isAdmin = false;
-
-        setTimeout(() => {
-            refreshUserUI().catch(error => {
-                console.warn(
-                    'Erro ao atualizar sessão:',
-                    error
-                );
-            });
-        }, 0);
-    });
-}
-
-async function initializeApp() {
-    setupPageEvents();
-    renderCategoryList();
+    container.innerHTML = items.map(([key, label, icon]) => `<button type="button" class="category-drawer-option${state.selectedCategory === key ? ' active' : ''}" data-drawer-category="${key}"><i data-lucide="${icon}"></i><span>${label}</span><i data-lucide="arrow-right"></i></button>`).join('');
+    $$('[data-drawer-category]', container).forEach(button => button.addEventListener('click', () => {
+      state.selectedCategory = button.dataset.drawerCategory;
+      renderEvents();
+      closeDrawer('#category-drawer');
+      window.scrollTo({ top: $('#quick-categories')?.offsetTop || 0, behavior: 'smooth' });
+    }));
     refreshIcons();
+  }
 
-    if (
-        typeof supabaseClient === 'undefined' ||
-        !supabaseClient
-    ) {
-        showLoadingMessage(
-            'Configuração do Supabase não encontrada. Confira o arquivo supabase-config.js.'
-        );
-
-        window.hideLoadingScreen?.();
-        return;
+  async function loadEvents({ notifyNew = false } = {}) {
+    const container = $('#events');
+    if (!supabaseClient) {
+      state.loadingFailed = true;
+      if (container) container.innerHTML = '<div class="empty-events col-span-full"><i data-lucide="settings-2"></i><h3>Configure a conexão do Supabase</h3><p>Abra <code>supabase-config.js</code> e preencha a URL e a chave pública do seu projeto para carregar os eventos.</p></div>';
+      renderFeatured();
+      refreshIcons();
+      return;
     }
+    if (container && !state.events.length) container.innerHTML = '<div class="loading-events"><span class="loading-spinner"></span><p>Carregando eventos...</p></div>';
+    try {
+      const { data, error } = await supabaseClient.from('events').select('*').order('date', { ascending: true });
+      if (error) throw error;
+      const all = Array.isArray(data) ? data : [];
+      if (notifyNew) {
+        all.forEach(eventItem => {
+          if (!state.notificationKnownIds.has(String(eventItem.id))) {
+            state.notificationKnownIds.add(String(eventItem.id));
+            dispatchEventNotification(eventItem);
+          }
+        });
+      } else {
+        all.forEach(eventItem => state.notificationKnownIds.add(String(eventItem.id)));
+      }
+      state.events = all.filter(eventItem => !isEventExpired(eventItem));
+      renderEvents();
+    } catch (error) {
+      console.error('Erro ao carregar eventos:', error);
+      if (container) container.innerHTML = `<div class="empty-events col-span-full"><i data-lucide="cloud-off"></i><h3>Não foi possível carregar os eventos</h3><p>${escapeHtml(error.message || 'Verifique a conexão com o Supabase.')}</p><button type="button" id="retry-load-events" class="retry-button">Tentar novamente</button></div>`;
+      $('#retry-load-events')?.addEventListener('click', () => loadEvents());
+      refreshIcons();
+    }
+  }
 
-    await Promise.all([
-        loadEvents(),
-        handleAuthState()
-    ]);
-}
+  function initEventLifecycle() {
+    if (state.eventLifecycleTimer) window.clearInterval(state.eventLifecycleTimer);
+    const wasPast = new Map(state.events.map(item => [String(item.id), isEventPast(item)]));
 
-document.addEventListener(
-    'DOMContentLoaded',
-    initializeApp
-);
+    // Mantém o selo cinza atualizado quando o evento termina e oculta itens após 3 dias.
+    state.eventLifecycleTimer = window.setInterval(() => {
+      const beforeCount = state.events.length;
+      state.events = state.events.filter(item => !isEventExpired(item));
+      let shouldRender = state.events.length !== beforeCount;
+      const remainingIds = new Set(state.events.map(item => String(item.id)));
+
+      for (const [id] of wasPast) {
+        if (!remainingIds.has(id)) wasPast.delete(id);
+      }
+      for (const item of state.events) {
+        const id = String(item.id);
+        const currentPast = isEventPast(item);
+        if (wasPast.has(id) && wasPast.get(id) !== currentPast) shouldRender = true;
+        wasPast.set(id, currentPast);
+      }
+      if (shouldRender) renderEvents();
+    }, 30_000);
+  }
+
+  function updateThemeUI() {
+    const isDark = document.documentElement.classList.contains('dark');
+    $('#light-theme')?.classList.toggle('bg-alagoinhas-100', !isDark);
+    $('#dark-theme')?.classList.toggle('bg-alagoinhas-100', isDark);
+  }
+
+  function setTheme(theme) {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme === 'dark' ? 'dark' : 'light');
+    updateThemeUI();
+    refreshIcons();
+  }
+
+  function initThemeAndSettings() {
+    const savedTheme = localStorage.getItem('theme');
+    setTheme(savedTheme || 'dark');
+    const wrapper = $('#settings-wrapper');
+    $('#settings-button')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      wrapper?.classList.toggle('open');
+    });
+    $('#settings-menu')?.addEventListener('click', event => event.stopPropagation());
+    document.addEventListener('click', () => wrapper?.classList.remove('open'));
+    $('#light-theme')?.addEventListener('click', () => { setTheme('light'); wrapper?.classList.remove('open'); });
+    $('#dark-theme')?.addEventListener('click', () => { setTheme('dark'); wrapper?.classList.remove('open'); });
+  }
+
+  function updateAuthUI() {
+    const loggedIn = Boolean(state.user);
+    $('#login-button')?.classList.toggle('hidden', loggedIn);
+    $('#user-menu')?.classList.toggle('hidden', !loggedIn);
+    $('#user-dropdown')?.classList.add('hidden');
+    const user = state.user;
+    if (user) {
+      const metadata = user.user_metadata || {};
+      const name = metadata.full_name || metadata.name || user.email?.split('@')[0] || 'Usuário';
+      const avatar = safeUrl(metadata.avatar_url || metadata.picture) || 'perfil.png';
+      $('#dropdown-name').textContent = name;
+      $('#dropdown-email').textContent = user.email || '';
+      const img = $('#user-avatar');
+      if (img) { img.src = avatar; img.alt = `Foto de perfil de ${name}`; img.classList.remove('hidden'); }
+      $('#user-avatar-icon')?.classList.add('hidden');
+      $('#profile-name').value = name;
+      const preview = $('#profile-preview');
+      if (preview) { preview.src = avatar; preview.classList.remove('hidden'); }
+      $('#profile-icon')?.classList.add('hidden');
+    } else {
+      const img = $('#user-avatar');
+      if (img) { img.src = 'perfil.png'; img.classList.remove('hidden'); }
+      $('#user-avatar-icon')?.classList.add('hidden');
+    }
+    refreshIcons();
+    checkAdminAccess();
+  }
+
+  async function checkAdminAccess() {
+    const adminLink = $('#admin-link');
+    if (!adminLink || !supabaseClient || !state.user?.email) {
+      adminLink?.classList.add('hidden');
+      return;
+    }
+    try {
+      const { data, error } = await supabaseClient.from('admins').select('email').eq('email', state.user.email).maybeSingle();
+      adminLink.classList.toggle('hidden', Boolean(error || !data));
+    } catch (_) {
+      adminLink.classList.add('hidden');
+    }
+  }
+
+  function openAuthModal(mode = 'login') {
+    state.authMode = mode;
+    updateAuthModeUI();
+    showModal($('#auth-modal'));
+    $('#auth-message')?.classList.add('hidden');
+  }
+
+  function updateAuthModeUI() {
+    const register = state.authMode === 'register';
+    $('#auth-title').textContent = register ? 'Criar conta' : 'Entrar';
+    $('#auth-submit').textContent = register ? 'Criar conta' : 'Entrar';
+    $('#toggle-auth-mode').textContent = register ? 'Já tem conta? Entrar' : 'Não tem conta? Criar uma';
+  }
+
+  function showAuthMessage(message, type = 'error') {
+    const element = $('#auth-message');
+    if (!element) return;
+    element.textContent = message;
+    element.className = `text-sm font-semibold p-3 rounded-xl ${type === 'success' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}`;
+  }
+
+  function initAuth() {
+    $('#login-button')?.addEventListener('click', () => openAuthModal('login'));
+    $('#close-auth-modal')?.addEventListener('click', () => closeModal($('#auth-modal')));
+    $('#auth-modal')?.addEventListener('click', event => { if (event.target === $('#auth-modal') || event.target.matches('[data-close-auth]')) closeModal($('#auth-modal')); });
+    $('#toggle-auth-mode')?.addEventListener('click', () => {
+      state.authMode = state.authMode === 'login' ? 'register' : 'login';
+      updateAuthModeUI();
+      $('#auth-message')?.classList.add('hidden');
+    });
+    $('#auth-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!supabaseClient) return showAuthMessage('Configure a conexão do Supabase em supabase-config.js.');
+      const submit = $('#auth-submit');
+      const email = $('#auth-email').value.trim();
+      const password = $('#auth-password').value;
+      submit.disabled = true;
+      submit.textContent = state.authMode === 'register' ? 'Criando conta...' : 'Entrando...';
+      try {
+        if (state.authMode === 'register') {
+          const { data, error } = await supabaseClient.auth.signUp({ email, password });
+          if (error) throw error;
+          if (!data.session) {
+            showAuthMessage('Conta criada. Verifique seu e-mail para confirmar o cadastro.', 'success');
+          } else {
+            closeModal($('#auth-modal'));
+            showNotice('Conta criada com sucesso!', 'success');
+          }
+        } else {
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          closeModal($('#auth-modal'));
+          showNotice('Login realizado com sucesso.', 'success');
+        }
+      } catch (error) {
+        showAuthMessage(error.message || 'Não foi possível autenticar sua conta.');
+      } finally {
+        submit.disabled = false;
+        updateAuthModeUI();
+      }
+    });
+    $('#google-login')?.addEventListener('click', async () => {
+      if (!supabaseClient) return showAuthMessage('Configure a conexão do Supabase em supabase-config.js.');
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}${window.location.pathname}` } });
+        if (error) throw error;
+      } catch (error) { showAuthMessage(error.message || 'Não foi possível entrar com Google.'); }
+    });
+    $('#logout-button')?.addEventListener('click', async () => {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) showNotice(error.message, 'error');
+      else showNotice('Você saiu da sua conta.', 'success');
+    });
+    $('#user-button')?.addEventListener('click', event => {
+      event.stopPropagation();
+      $('#user-dropdown')?.classList.toggle('hidden');
+    });
+    $('#user-dropdown')?.addEventListener('click', event => event.stopPropagation());
+    document.addEventListener('click', () => $('#user-dropdown')?.classList.add('hidden'));
+    $('#edit-profile-button')?.addEventListener('click', () => {
+      $('#user-dropdown')?.classList.add('hidden');
+      $('#profile-message')?.classList.add('hidden');
+      $('#profile-avatar').value = '';
+      const avatar = safeUrl(state.user?.user_metadata?.avatar_url || state.user?.user_metadata?.picture) || 'perfil.png';
+      $('#profile-preview').src = avatar;
+      $('#profile-preview').classList.remove('hidden');
+      $('#profile-icon')?.classList.add('hidden');
+      showModal($('#profile-modal'));
+    });
+    $('#close-profile-modal')?.addEventListener('click', () => closeModal($('#profile-modal')));
+    $('#profile-modal')?.addEventListener('click', event => { if (event.target === $('#profile-modal') || event.target.matches('[data-close-profile]')) closeModal($('#profile-modal')); });
+    $('#profile-avatar')?.addEventListener('change', event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+        event.target.value = '';
+        showProfileMessage('Escolha JPG, PNG, WEBP ou GIF de até 5 MB.', 'error');
+        return;
+      }
+      if (state.profileObjectUrl) URL.revokeObjectURL(state.profileObjectUrl);
+      state.profileObjectUrl = URL.createObjectURL(file);
+      $('#profile-preview').src = state.profileObjectUrl;
+      $('#profile-preview').classList.remove('hidden');
+    });
+    $('#profile-form')?.addEventListener('submit', saveProfile);
+    if (supabaseClient) {
+      supabaseClient.auth.getSession().then(({ data, error }) => {
+        if (error) console.warn('Não foi possível recuperar a sessão:', error.message);
+        state.session = data?.session || null;
+        state.user = state.session?.user || null;
+        updateAuthUI();
+      }).catch(error => console.error(error));
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        state.session = session || null;
+        state.user = session?.user || null;
+        updateAuthUI();
+      });
+    }
+  }
+
+  function showProfileMessage(message, type = 'error') {
+    const element = $('#profile-message');
+    if (!element) return;
+    element.textContent = message;
+    element.className = `text-sm font-semibold p-3 rounded-xl ${type === 'success' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}`;
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    if (!supabaseClient || !state.user) return showProfileMessage('Entre na sua conta antes de editar o perfil.');
+    const submit = $('#profile-submit');
+    submit.disabled = true;
+    const original = submit.textContent;
+    submit.textContent = 'Salvando...';
+    try {
+      const fullName = $('#profile-name').value.trim();
+      const file = $('#profile-avatar').files?.[0];
+      const updates = { full_name: fullName };
+      if (file) {
+        const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+        const path = `profiles/${state.user.id}/${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await supabaseClient.storage.from(IMAGE_BUCKET).upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type });
+        if (uploadError) throw new Error(`Não foi possível enviar a foto: ${uploadError.message}`);
+        const { data } = supabaseClient.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+        if (data?.publicUrl) updates.avatar_url = data.publicUrl;
+      }
+      const { data, error } = await supabaseClient.auth.updateUser({ data: updates });
+      if (error) throw error;
+      state.user = data.user || state.user;
+      updateAuthUI();
+      closeModal($('#profile-modal'));
+      showNotice('Perfil atualizado.', 'success');
+    } catch (error) {
+      showProfileMessage(error.message || 'Não foi possível salvar as alterações.');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = original;
+    }
+  }
+
+  function notificationEnabled() {
+    return localStorage.getItem('event-notifications') === 'true';
+  }
+
+  function updateNotificationUI() {
+    const enabled = notificationEnabled();
+    const button = $('#event-notifications-toggle');
+    if (button) button.setAttribute('aria-pressed', String(enabled));
+    const label = $('#event-notifications-label');
+    if (label) label.textContent = enabled ? 'Avisos de eventos ativados' : 'Ativar avisos de eventos';
+    button?.classList.toggle('is-enabled', enabled);
+  }
+
+  async function toggleEventNotifications() {
+    if (notificationEnabled()) {
+      localStorage.setItem('event-notifications', 'false');
+      stopNotificationListening();
+      updateNotificationUI();
+      showNotice('Avisos de eventos desativados.');
+      return;
+    }
+    if (!('Notification' in window)) {
+      showNotice('Este navegador não oferece notificações.', 'error');
+      return;
+    }
+    let permission = Notification.permission;
+    try {
+      if (permission === 'default') permission = await Notification.requestPermission();
+    } catch (error) {
+      console.warn('Não foi possível solicitar permissão para notificações:', error);
+      showNotice('O navegador não permitiu solicitar notificações. Confira as permissões do site.', 'error');
+      updateNotificationUI();
+      return;
+    }
+    if (permission !== 'granted') {
+      showNotice('Permita notificações nas configurações do navegador para ativar os avisos.', 'error');
+      updateNotificationUI();
+      return;
+    }
+    state.events.forEach(item => state.notificationKnownIds.add(String(item.id)));
+    localStorage.setItem('event-notifications', 'true');
+    updateNotificationUI();
+    startNotificationListening();
+    showNotice('Avisos de novos eventos ativados.', 'success');
+  }
+
+  function dispatchEventNotification(eventItem) {
+    if (!notificationEnabled() || !('Notification' in window) || Notification.permission !== 'granted') return;
+    {
+      try {
+        const notification = new Notification('Novo evento em Alagoinhas', {
+          body: `${eventItem.name || 'Novo evento'} · ${formatTimeRange(eventItem)}`,
+          icon: 'perfil.png',
+          tag: `event-${eventItem.id}`,
+          data: { eventId: eventItem.id }
+        });
+        notification.onclick = () => {
+          window.focus();
+          openEventModal(eventItem.id);
+          notification.close();
+        };
+      } catch (error) { console.warn('Não foi possível exibir a notificação:', error); }
+    }
+  }
+
+  function startNotificationListening() {
+    stopNotificationListening();
+    if (!supabaseClient || !notificationEnabled()) return;
+    try {
+      state.notificationChannel = supabaseClient.channel('agenda-event-notifications')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, payload => {
+          const eventItem = payload.new;
+          if (!eventItem?.id) return;
+          const id = String(eventItem.id);
+          if (state.notificationKnownIds.has(id)) return;
+          state.notificationKnownIds.add(id);
+          state.events.push(eventItem);
+          state.events = state.events.filter(item => !isEventExpired(item));
+          renderEvents();
+          dispatchEventNotification(eventItem);
+        })
+        .subscribe(status => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('Notificações em tempo real indisponíveis; usando consulta periódica.');
+        });
+    } catch (error) { console.warn('Realtime indisponível:', error); }
+    state.notificationPolling = window.setInterval(() => loadEvents({ notifyNew: true }), 60000);
+  }
+
+  function stopNotificationListening() {
+    if (state.notificationChannel && supabaseClient) {
+      supabaseClient.removeChannel(state.notificationChannel).catch(() => {});
+    }
+    state.notificationChannel = null;
+    if (state.notificationPolling) window.clearInterval(state.notificationPolling);
+    state.notificationPolling = null;
+  }
+
+  function initNotifications() {
+    updateNotificationUI();
+    $('#event-notifications-toggle')?.addEventListener('click', toggleEventNotifications);
+    if (notificationEnabled()) startNotificationListening();
+  }
+
+  function renderCalendar() {
+    const grid = $('#calendar-grid');
+    if (!grid) return;
+    const year = state.calendarDate.getFullYear();
+    const month = state.calendarDate.getMonth();
+    const first = new Date(year, month, 1);
+    const days = new Date(year, month + 1, 0).getDate();
+    const startOffset = (first.getDay() + 6) % 7;
+    const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(first);
+    $('#calendar-month').textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+    const weekNames = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    const cells = weekNames.map(day => `<div class="calendar-weekday">${day}</div>`);
+    for (let i = 0; i < startOffset; i++) cells.push('<div class="calendar-day is-empty"></div>');
+    const eventDates = new Set(state.events.filter(item => !isEventExpired(item)).map(item => {
+      const d = parseEventDate(item.date);
+      return d ? localDateKey(d) : '';
+    }));
+    for (let day = 1; day <= days; day++) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isSelected = dateKey === state.selectedCalendarDate;
+      const hasEvent = eventDates.has(dateKey);
+      cells.push(`<button type="button" class="calendar-day${isSelected ? ' selected' : ''}${hasEvent ? ' has-event' : ''}" data-calendar-date="${dateKey}" aria-label="${day} ${monthLabel}" aria-pressed="${isSelected}">${day}${hasEvent ? '<span class="calendar-event-dot"></span>' : ''}</button>`);
+    }
+    grid.innerHTML = cells.join('');
+    $$('[data-calendar-date]', grid).forEach(button => button.addEventListener('click', () => {
+      state.selectedCalendarDate = button.dataset.calendarDate;
+      renderCalendar();
+    }));
+    const selectedEvents = state.events.filter(item => {
+      const date = parseEventDate(item.date);
+      const key = date ? localDateKey(date) : '';
+      return key === state.selectedCalendarDate && !isEventExpired(item);
+    }).sort((a, b) => (parseEventDate(a.date)?.getTime() || 0) - (parseEventDate(b.date)?.getTime() || 0));
+    const list = $('#calendar-event-list');
+    if (list) {
+      list.innerHTML = selectedEvents.length ? selectedEvents.map(item => `<button type="button" class="calendar-event-row" data-calendar-event="${escapeHtml(item.id)}"><span class="calendar-event-time">${escapeHtml(parseEventDate(item.date) ? new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: EVENT_TIME_ZONE }).format(parseEventDate(item.date)) : '--:--')}</span><span class="calendar-event-name">${escapeHtml(item.name)}</span></button>`).join('') : '<p class="text-sm text-slate-500 py-4">Nenhum evento nesta data.</p>';
+      $$('[data-calendar-event]', list).forEach(button => button.addEventListener('click', () => openEventModal(button.dataset.calendarEvent)));
+    }
+    $('#calendar-selected-count').textContent = `${selectedEvents.length} ${selectedEvents.length === 1 ? 'evento' : 'eventos'}`;
+    $('#calendar-selected-title').textContent = `Eventos de ${state.selectedCalendarDate.split('-').reverse().join('/')}`;
+    refreshIcons();
+  }
+
+  function initCalendarAndDrawers() {
+    $('#menu-button')?.addEventListener('click', () => openDrawer('#calendar-drawer'));
+    $('#calendar-close')?.addEventListener('click', () => closeDrawer('#calendar-drawer'));
+    $('#calendar-backdrop')?.addEventListener('click', () => closeDrawer('#calendar-drawer'));
+    $('#calendar-prev')?.addEventListener('click', () => { state.calendarDate = new Date(state.calendarDate.getFullYear(), state.calendarDate.getMonth() - 1, 1); renderCalendar(); });
+    $('#calendar-next')?.addEventListener('click', () => { state.calendarDate = new Date(state.calendarDate.getFullYear(), state.calendarDate.getMonth() + 1, 1); renderCalendar(); });
+    $('#close-category')?.addEventListener('click', () => closeDrawer('#category-drawer'));
+    $('#category-backdrop')?.addEventListener('click', () => closeDrawer('#category-drawer'));
+    renderCategoryDrawer();
+  }
+
+  function initMainInteractions() {
+    $('#search')?.addEventListener('input', event => { state.search = event.target.value.trim(); renderEvents(); });
+    $('#quick-categories')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-quick-category]');
+      if (!button) return;
+      state.selectedCategory = button.dataset.quickCategory;
+      renderEvents();
+    });
+    $('#clear-category')?.addEventListener('click', () => { state.selectedCategory = 'all'; renderEvents(); });
+    $('#close-modal')?.addEventListener('click', () => closeModal($('#modal')));
+    $('#modal-backdrop')?.addEventListener('click', () => closeModal($('#modal')));
+    $('#close-auth-modal')?.addEventListener('click', () => closeModal($('#auth-modal')));
+    $('#close-profile-modal')?.addEventListener('click', () => closeModal($('#profile-modal')));
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      ['#modal', '#auth-modal', '#profile-modal'].forEach(selector => closeModal($(selector)));
+      closeDrawer('#calendar-drawer');
+      closeDrawer('#category-drawer');
+    });
+    $('#footer-year').textContent = String(new Date().getFullYear());
+    const carousel = $('#featured-carousel');
+    carousel?.addEventListener('mouseenter', stopFeaturedCarousel);
+    carousel?.addEventListener('mouseleave', restartFeaturedCarousel);
+    carousel?.addEventListener('focusin', stopFeaturedCarousel);
+    carousel?.addEventListener('focusout', event => { if (!carousel.contains(event.relatedTarget)) restartFeaturedCarousel(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopFeaturedCarousel(); else restartFeaturedCarousel();
+    });
+  }
+
+  async function initialize() {
+    const savedTheme = localStorage.getItem('theme');
+    document.documentElement.classList.toggle('dark', savedTheme !== 'light');
+    initThemeAndSettings();
+    initMainInteractions();
+    initAuth();
+    initCalendarAndDrawers();
+    refreshIcons();
+    await loadEvents();
+    initEventLifecycle();
+    initNotifications();
+    hideLoadingScreen();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  else initialize();
+})();

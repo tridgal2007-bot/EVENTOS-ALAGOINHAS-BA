@@ -1,50 +1,42 @@
-# Alagoinhas Eventos - Portal de Agenda Cultural
+# Eventos em Alagoinhas — projeto atualizado
 
-Este projeto é um portal de eventos para Alagoinhas - BA, desenvolvido com **React + Vite + Tailwind CSS (v4)** e **TypeScript**. Ele foi estruturado como uma aplicação de página única (SPA) cliente pura, ideal para rodar localmente no VS Code e ser hospedado gratuitamente na Vercel ou Netlify, utilizando `localStorage` para persistência local rápida e eficiente de dados.
+Projeto separado em HTML, CSS e JavaScript, preservando a página principal, calendário, filtros, busca, detalhes do evento, login/cadastro, autenticação com Google, edição de perfil, painel administrativo, upload de imagens e gerenciamento de administradores.
 
-## 🚀 Como Executar Localmente (VS Code)
+## Arquivos
 
-Para rodar este projeto na sua máquina de desenvolvimento usando o VS Code, certifique-se de ter o [Node.js](https://nodejs.org/) instalado.
+- `index.html` — página pública.
+- `styles.css` — aparência da página pública e carrossel.
+- `script.js` — eventos, busca, filtros, carrossel, calendário, autenticação e notificações.
+- `admin.html` — painel de administração.
+- `admin.css` — aparência do painel.
+- `admin.js` — cadastro/remoção de eventos e gerenciamento de administradores.
+- `tailwind-config.js` — configuração de cores e fontes do Tailwind CDN.
+- `supabase-config.js` — configuração da conexão com o Supabase.
+- `supabase-maintenance.sql` — coluna de término, conversão de data sem fuso quando necessária e agendamento de limpeza.
+- `perfil.png` — avatar padrão local, usado se o usuário ainda não enviou uma foto.
 
-1. **Abra a pasta do projeto** no VS Code.
-2. **Abra o terminal integrado** (`Ctrl + \`` ou `Cmd + \``) e instale as dependências:
-   ```bash
-   npm install
-   ```
-3. **Inicie o servidor de desenvolvimento**:
-   ```bash
-   npm run dev
-   ```
-4. **Abra o link exibido no terminal** (geralmente `http://localhost:3000` ou `http://localhost:5173`) no seu navegador.
+## Instalação obrigatória
 
-## ⚡ Como Implantar (Deploy) na Vercel
+1. Abra `supabase-config.js` e preencha `SUPABASE_URL` com a URL do projeto e `SUPABASE_ANON_KEY` com a chave pública `anon`/publishable. **Nunca** use a chave `service_role` no navegador.
+2. No painel do Supabase, abra o SQL Editor e execute `supabase-maintenance.sql`. Confira a mensagem de saída para confirmar se o `pg_cron` foi habilitado e se o agendamento foi criado. Se a extensão não estiver disponível, ative `pg_cron` em **Database → Extensions** e execute o arquivo novamente.
+3. Mantenha o bucket de Storage `alagoinhas-images` existente e público para leitura, como o projeto anterior usava, com policies de upload adequadas. A mesma bucket é usada para fotos dos eventos e avatares.
+4. Confirme as policies/RLS existentes das tabelas `events` e `admins`. A página pública precisa poder ler os eventos; somente usuários autorizados devem cadastrar/excluir eventos e gerenciar a tabela `admins`.
+5. Para o botão de Google funcionar, mantenha o provedor Google habilitado em **Authentication → Providers** e configure a URL pública do site em **Authentication → URL Configuration**.
+6. Publique todos os arquivos no mesmo diretório/site, preservando os nomes, inclusive `perfil.png`. Abra `index.html` por um servidor HTTP (por exemplo, Live Server), não por `file://`.
 
-Hospedar seu projeto na Vercel é extremamente simples e leva menos de 2 minutos:
+## Horário sem deslocamento
 
-### Método 1: Via Vercel CLI (Direto do VS Code)
-1. Instale o CLI da Vercel globalmente:
-   ```bash
-   npm install -g vercel
-   ```
-2. Na raiz do projeto, execute o comando:
-   ```bash
-   vercel
-   ```
-3. Siga as instruções rápidas na tela (pressione Enter para as opções padrão).
+O painel usa `datetime-local` e transforma o valor para um instante ISO considerando o fuso fixo de Alagoinhas (`America/Bahia`), independentemente do fuso do computador do administrador. O SQL converte a coluna antiga `date` de `timestamp without time zone` para `timestamptz`, interpretando registros antigos sem fuso como horário local de Alagoinhas. A gravação e a apresentação usam o fuso `America/Bahia`, para que o horário de Alagoinhas continue igual ao digitado mesmo se o administrador ou visitante estiver com outro fuso no aparelho. A coluna `end_date` guarda o término, e eventos finalizados ficam acinzentados e com a etiqueta **Já aconteceu** durante três dias.
 
-### Método 2: Conectando ao GitHub (Recomendado)
-1. Crie um repositório no seu GitHub e envie o código para lá.
-2. Acesse [vercel.com](https://vercel.com/) e faça login.
-3. Clique em **"Add New"** > **"Project"**.
-4. Importe o repositório do seu GitHub.
-5. A Vercel detectará automaticamente que é um projeto **Vite**. Basta clicar em **"Deploy"**.
+Em registros antigos que já são `timestamptz`, o script não desloca valores existentes automaticamente, porque não há como distinguir com segurança os registros corretos dos que foram gravados com o fuso errado. Os novos cadastros seguem o fluxo corrigido.
 
----
+## Limpeza e notificações
 
-## 🛠️ Tecnologias Utilizadas
+- A página oculta eventos depois de três dias do horário de término.
+- O agendamento `pg_cron`, quando disponível e ativo, apaga os registros vencidos a cada 30 minutos sem depender de visitas ao site.
+- O botão **Configurações → Notificações** pede autorização do navegador e avisa sobre novos eventos via Supabase Realtime, com consulta periódica de apoio enquanto a página está aberta.
+- Notificações do navegador enquanto o site está totalmente fechado exigem um serviço Web Push (service worker, VAPID e um emissor no servidor); esse envio fora da página não está incluído nesta versão, pois requer credenciais e configuração de servidor que não vieram nos arquivos originais.
 
-- **React 19** & **TypeScript**
-- **Vite 6** (Super rápido para desenvolvimento e compilação)
-- **Tailwind CSS v4** (Estilização ultra-rápida baseada em classes de utilidade)
-- **Motion (motion/react)** (Animações fluidas e elegantes)
-- **Lucide React** (Ícones vetoriais modernos)
+## Compatibilidade de banco
+
+O projeto espera a tabela `public.events` com os campos usados anteriormente (`id`, `name`, `description`, `image`, `date`, `category`, `has_ticket`, `price`, `link`) e a tabela `public.admins` com `email`, `created_at` e, para registrar quem adicionou um administrador, `added_by`. A migração adiciona `end_date`. Não substitua as suas policies do Supabase por policies públicas permissivas.

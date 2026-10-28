@@ -1,760 +1,636 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR" class="scroll-smooth">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Eventos em Alagoinhas - BA</title>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
+
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tailwind-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        alagoinhas: {
-                            50: '#F4F8FD', 100: '#E8F0FA', 200: '#D3E2F4', 300: '#A9C7E9',
-                            400: '#78A9DC', 500: '#3F8BD9', 600: '#2E73BC', 700: '#245C98',
-                            800: '#1D4876', 900: '#132F4F'
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        display: ['Sora', 'sans-serif']
-                    },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-15px)' }
-                        }
-                    },
-                    animation: {
-                        float: 'float 9s ease-in-out infinite',
-                        spin: 'spin 1s linear infinite'
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        * { box-sizing: border-box; }
-        html, body { min-height: 100%; }
-        body {
-            margin: 0;
-            background: #F7F9FC;
-            color: #132F4F;
-            font-family: Inter, sans-serif;
-            transition: background-color .3s ease, color .3s ease;
-        }
-        .dark body { background: #0D121A; color: #F1F5F9; }
-        .glass-effect {
-            background: rgba(255,255,255,.88);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            border: 1px solid rgba(215,227,240,.75);
-        }
-        .dark .glass-effect {
-            background: rgba(13,18,26,.90);
-            border-color: rgba(255,255,255,.07);
-        }
-        .glass-card {
-            background: rgba(255,255,255,.96);
-            border: 1px solid #E1EAF3;
-            box-shadow: 0 8px 30px rgba(19,47,79,.06);
-        }
-        .dark .glass-card {
-            background: #141B26;
-            border-color: rgba(255,255,255,.07);
-            box-shadow: 0 12px 35px rgba(0,0,0,.25);
-        }
-        .gradient-text {
-            background: linear-gradient(135deg, #3F8BD9, #245C98);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .dark .gradient-text {
-            background: linear-gradient(135deg, #78A9DC, #A9C7E9);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        #settings-wrapper { position: relative; }
-        #settings-menu {
-            position: absolute;
-            top: calc(100% + 9px);
-            right: 0;
-            width: 225px;
-            padding: 7px;
-            border-radius: 15px;
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(-5px) scale(.98);
-            pointer-events: none;
-            transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
-            z-index: 9999;
-        }
-        #settings-wrapper.open #settings-menu {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0) scale(1);
-            pointer-events: auto;
-        }
-        .settings-option {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 11px;
-            border: 0;
-            border-radius: 10px;
-            background: transparent;
-            color: #52677C;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: left;
-            transition: background .2s ease, color .2s ease;
-        }
-        .settings-option:hover { background: #F1F5F9; color: #245C98; }
-        .dark .settings-option { color: #CBD5E1; }
-        .dark .settings-option:hover { background: rgba(255,255,255,.06); color: #A9C7E9; }
-        .google-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #E1EAF3;
-            border-radius: 12px;
-            background: white;
-            color: #132F4F;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all .3s;
-        }
-        .google-btn:hover {
-            border-color: #3F8BD9;
-            background: #F4F8FD;
-        }
-        .dark .google-btn {
-            background: #141B26;
-            border-color: rgba(255,255,255,.1);
-            color: #F1F5F9;
-        }
-        .event-desc { color: #52677C; }
-        .dark .event-desc { color: rgba(255,255,255,.6); }
-        #category-drawer {
-            visibility: hidden;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity .3s ease, visibility .3s ease;
-        }
-        #category-drawer.open {
-            visibility: visible;
-            pointer-events: auto;
-            opacity: 1;
-        }
-        #category-drawer.open .drawer-panel { transform: translateX(0); }
-        #category-drawer.open .drawer-backdrop { opacity: 1; }
-        .drawer-panel {
-            transform: translateX(100%);
-            transition: transform .4s cubic-bezier(.16,1,.3,1);
-        }
-        .drawer-backdrop { opacity: 0; transition: opacity .3s ease; }
-        @keyframes fadeSlideIn {
-            from { opacity: 0; transform: translateY(14px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .fade-slide-in { animation: fadeSlideIn .5s cubic-bezier(.16,1,.3,1) both; }
 
-        /* Barra compacta no estilo da referência */
-        body { background:#f2f5f9; }
-        .dark body { background:#07111f; }
-        .site-header {
-            background:#071426 !important;
-            color:#fff;
-            border-color:rgba(255,255,255,.08) !important;
-        }
-        .site-header .brand-title {
-            color:#fff !important;
-            background:none !important;
-            -webkit-text-fill-color:#fff !important;
-        }
-        .header-icon-button {
-            width:36px;
-            height:36px;
-            flex:0 0 36px;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            border-radius:12px;
-            color:#dce8f8;
-            background:rgba(255,255,255,.07);
-            border:1px solid rgba(255,255,255,.09);
-            transition:background .18s ease, transform .18s ease;
-            cursor:pointer;
-        }
-        .header-icon-button:hover {
-            background:rgba(255,255,255,.15);
-            transform:translateY(-1px);
-        }
-        .header-avatar-button {
-            width:36px;
-            height:36px;
-            border-radius:50%;
-            overflow:hidden;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            border:1px solid rgba(255,255,255,.14);
-            background:#ed850f;
-            color:#fff;
-            flex:0 0 36px;
-            cursor:pointer;
-        }
-        .header-avatar-button img {
-            width:100%;
-            height:100%;
-            object-fit:cover;
-        }
-        .announce-button {
-            height:36px;
-            border-radius:999px;
-            padding:0 13px;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            gap:6px;
-            background:#f5f7fb;
-            color:#15243a;
-            font-weight:800;
-            font-size:12px;
-            white-space:nowrap;
-            border:1px solid rgba(255,255,255,.3);
-        }
-        .announce-button:hover { background:#dce9fb; }
-        .compact-search-wrap {
-            background:#071426;
-            padding:0 12px 10px;
-        }
-        .compact-search {
-            height:36px;
-            border-radius:999px !important;
-            background:#0b1d32 !important;
-            color:#f7fbff !important;
-            border:1px solid #224b75 !important;
-            box-shadow:0 0 0 1px rgba(46,134,222,.07) inset;
-        }
-        .compact-search::placeholder { color:#9cacbf !important; }
-        .quick-categories {
-            display:flex;
-            gap:7px;
-            padding:0 12px 11px;
-            overflow-x:auto;
-            scrollbar-width:none;
-            background:#071426;
-        }
-        .quick-categories::-webkit-scrollbar { display:none; }
-        .quick-category {
-            flex:0 0 auto;
-            height:31px;
-            border-radius:999px;
-            padding:0 15px;
-            color:#f6f8fc;
-            background:#16273a;
-            border:1px solid rgba(255,255,255,.04);
-            font-size:11px;
-            font-weight:800;
-            white-space:nowrap;
-            cursor:pointer;
-            transition:all .18s ease;
-        }
-        .quick-category.active {
-            background:#1877f2;
-            border-color:#1877f2;
-            color:white;
-            box-shadow:0 4px 12px rgba(24,119,242,.22);
-        }
-        .quick-category:not(.active):hover { background:#223a53; }
-        #events .event-card { border-radius:18px; }
-        #calendar-drawer {
-            position:fixed;
-            inset:0;
-            z-index:9500;
-            visibility:hidden;
-            opacity:0;
-            pointer-events:none;
-            transition:opacity .2s ease,visibility .2s ease;
-        }
-        #calendar-drawer.open {
-            visibility:visible;
-            opacity:1;
-            pointer-events:auto;
-        }
-        #calendar-drawer .calendar-backdrop {
-            position:absolute;
-            inset:0;
-            background:rgba(1,8,18,.72);
-            backdrop-filter:blur(5px);
-        }
-        #calendar-drawer .calendar-panel {
-            position:absolute;
-            inset:0 auto 0 0;
-            width:min(100%,390px);
-            overflow-y:auto;
-            transform:translateX(-100%);
-            transition:transform .28s cubic-bezier(.2,.8,.2,1);
-            background:#0b1727;
-            color:#f8fafc;
-            border-right:1px solid rgba(255,255,255,.1);
-        }
-        #calendar-drawer.open .calendar-panel { transform:translateX(0); }
-        .calendar-day {
-            position:relative;
-            min-height:42px;
-            border-radius:12px;
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            justify-content:center;
-            gap:3px;
-            font-size:13px;
-            color:#dbe7f5;
-            background:transparent;
-        }
-        .calendar-day:hover { background:#182b41; }
-        .calendar-day.selected {
-            background:#1877f2;
-            color:#fff;
-            font-weight:800;
-        }
-        .calendar-day.today:not(.selected) {
-            outline:1px solid #438ff5;
-            color:#fff;
-        }
-        .calendar-day.empty { pointer-events:none; }
-        .calendar-day .event-dot {
-            width:5px;
-            height:5px;
-            border-radius:50%;
-            background:#3695ff;
-            display:block;
-        }
-        .calendar-day.selected .event-dot { background:#fff; }
-        .calendar-event-row {
-            display:flex;
-            align-items:flex-start;
-            gap:10px;
-            padding:12px 0;
-            border-bottom:1px solid rgba(255,255,255,.08);
-        }
-        .calendar-event-row:last-child { border-bottom:0; }
-        @media (min-width:640px) {
-            .compact-search-wrap,.quick-categories {
-                padding-left:max(16px,calc((100vw - 1200px)/2));
-                padding-right:max(16px,calc((100vw - 1200px)/2));
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
+
 </head>
+
 <body class="antialiased min-h-screen flex flex-col">
+
     <div id="loading-screen" class="fixed inset-0 z-[10000] bg-[#F7F9FC] dark:bg-[#0D121A] flex flex-col items-center justify-center transition-opacity duration-500">
+
         <div class="relative w-20 h-20 mb-6">
+
             <div class="absolute inset-0 rounded-full border-4 border-alagoinhas-100 dark:border-alagoinhas-800"></div>
+
             <div class="absolute inset-0 rounded-full border-4 border-t-alagoinhas-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+
             <div class="absolute inset-0 flex items-center justify-center">
+
                 <i data-lucide="calendar-days" class="w-7 h-7 text-alagoinhas-500"></i>
+
             </div>
+
         </div>
+
         <h2 class="text-xl font-bold font-display text-alagoinhas-900 dark:text-white">Carregando eventos</h2>
+
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Preparando a agenda...</p>
+
     </div>
 
     <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+
         <div class="absolute w-[500px] h-[500px] rounded-full bg-alagoinhas-500 opacity-[.07] blur-[120px] -left-40 -top-40 animate-float"></div>
+
         <div class="absolute w-[400px] h-[400px] rounded-full bg-alagoinhas-400 opacity-[.05] blur-[120px] right-0 top-40"></div>
+
     </div>
 
     <header class="site-header relative z-[500] sticky top-0 border-b">
+
         <div class="max-w-7xl mx-auto px-3 sm:px-5">
+
             <div class="h-[48px] flex items-center gap-2 sm:gap-3">
+
                 <button id="menu-button" type="button" class="header-icon-button" aria-label="Abrir calendário de eventos" title="Calendário de eventos">
+
                     <i data-lucide="menu" class="w-[19px] h-[19px]"></i>
+
                 </button>
 
                 <a href="index.html" class="flex items-center gap-2 min-w-0 flex-1" aria-label="Eventos em Alagoinhas - início">
-                    <span class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-base shadow-md shrink-0">🎪</span>
+
+                    <span class="brand-home-icon" aria-hidden="true"><i data-lucide="house"></i></span>
+
                     <span class="min-w-0">
+
                         <span class="block brand-title text-[12px] sm:text-sm font-extrabold font-display tracking-tight leading-tight truncate">ALAGOINHAS</span>
+
                         <span class="hidden sm:block text-[9px] uppercase tracking-[.13em] font-bold text-slate-400 leading-tight">Eventos & Cultura</span>
+
                     </span>
+
                 </a>
 
                 <div id="user-menu" class="hidden relative shrink-0">
+
                     <button id="user-button" type="button" class="header-avatar-button" aria-label="Abrir menu do usuário" title="Minha conta">
-                        <img id="user-avatar" src="" alt="" class="hidden">
-                        <i id="user-avatar-icon" data-lucide="user-round" class="w-[17px] h-[17px]"></i>
+
+                        <img id="user-avatar" src="perfil.png" alt="Foto de perfil" class="" onerror="this.onerror=null;this.src='perfil.png'">
+
+                        <i id="user-avatar-icon" data-lucide="user-round" class="hidden w-[17px] h-[17px]"></i>
+
                     </button>
+
                     <div id="user-dropdown" class="hidden absolute top-full right-0 mt-2 w-60 glass-card rounded-xl shadow-xl overflow-hidden z-[700] text-left">
+
                         <div class="px-4 py-3 border-b border-slate-200 dark:border-white/10">
+
                             <p id="dropdown-name" class="text-sm font-semibold text-alagoinhas-900 dark:text-white truncate"></p>
+
                             <p id="dropdown-email" class="text-xs text-slate-500 dark:text-slate-400 truncate"></p>
+
                         </div>
+
                         <button id="edit-profile-button" type="button" class="w-full px-4 py-3 text-left text-sm font-semibold text-alagoinhas-700 dark:text-alagoinhas-200 hover:bg-alagoinhas-50 dark:hover:bg-white/10 flex items-center gap-2">
+
                             <i data-lucide="user-cog" class="w-4 h-4"></i> Editar perfil
+
                         </button>
+
                         <button id="logout-button" type="button" class="w-full px-4 py-3 text-left text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 border-t border-slate-200 dark:border-white/10">
+
                             <i data-lucide="log-out" class="w-4 h-4"></i> Sair
+
                         </button>
+
                     </div>
+
                 </div>
 
                 <button id="login-button" type="button" class="header-avatar-button shrink-0" aria-label="Entrar ou criar conta" title="Entrar">
+
                     <i data-lucide="user-round" class="w-[17px] h-[17px]"></i>
+
                 </button>
 
                 <div id="settings-wrapper" class="relative shrink-0">
+
                     <button id="settings-button" type="button" class="header-icon-button" aria-label="Configurações" title="Configurações">
+
                         <i data-lucide="settings" class="w-[17px] h-[17px]"></i>
+
                     </button>
+
                     <div id="settings-menu" class="glass-card">
+
                         <div class="px-3 pt-2 pb-2">
+
                             <p class="text-[10px] uppercase tracking-wider font-bold text-alagoinhas-500">Aparência</p>
+
                         </div>
+
                         <button id="light-theme" type="button" class="settings-option">
+
                             <i data-lucide="sun" class="w-4 h-4"></i><span>Modo claro</span>
+
                         </button>
+
                         <button id="dark-theme" type="button" class="settings-option">
+
                             <i data-lucide="moon" class="w-4 h-4"></i><span>Modo escuro</span>
+
                         </button>
+
+                            <div class="my-2 border-t border-slate-200 dark:border-white/10"></div>
+
+                            <div class="px-3 pt-2 pb-1"><p class="text-[10px] uppercase tracking-wider font-bold text-alagoinhas-500">Notificações</p></div>
+
+                            <button id="event-notifications-toggle" type="button" class="settings-option" aria-pressed="false">
+
+                                <i data-lucide="bell" class="w-4 h-4"></i><span id="event-notifications-label">Ativar avisos de eventos</span>
+
+                            </button>
+
                     </div>
+
                 </div>
 
                 <a id="admin-link" href="admin.html" class="announce-button hidden shrink-0">
+
                     <i data-lucide="plus" class="w-4 h-4"></i><span>Anunciar</span>
+
                 </a>
+
             </div>
+
         </div>
 
         <div class="compact-search-wrap">
+
             <div class="max-w-7xl mx-auto relative">
+
                 <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+
                 <input id="search" type="search" placeholder="Pesquisar shows, esportes, teatros locais..." class="compact-search w-full pl-10 pr-4 text-xs sm:text-sm focus:outline-none focus:border-blue-400">
+
             </div>
+
         </div>
 
         <div id="quick-categories" class="quick-categories max-w-7xl mx-auto" aria-label="Filtrar eventos por categoria">
+
             <button type="button" class="quick-category active" data-quick-category="all">Todos</button>
+
             <button type="button" class="quick-category" data-quick-category="shows-festas">Shows & Festas</button>
+
             <button type="button" class="quick-category" data-quick-category="esportes-saude">Esportes & Saúde</button>
+
             <button type="button" class="quick-category" data-quick-category="cultura">Cultura</button>
+
             <button type="button" class="quick-category" data-quick-category="gastronomia">Gastronomia</button>
+
             <button type="button" class="quick-category" data-quick-category="infantil">Infantil</button>
+
             <button type="button" class="quick-category" data-quick-category="religioso">Religioso</button>
+
             <button type="button" class="quick-category" data-quick-category="outros">Outros</button>
+
         </div>
+
     </header>
 
     <main class="relative z-10 flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 pt-5 w-full">
+
         <div class="flex items-center justify-between gap-3 mb-4">
+
             <div>
+
                 <p class="text-[10px] uppercase tracking-[.16em] font-extrabold text-blue-600 dark:text-blue-300">Descobrir</p>
+
                 <h2 class="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white">Eventos próximos</h2>
+
             </div>
+
         </div>
 
         <div id="active-category-pill" class="hidden mb-6 items-center gap-2">
+
             <span class="text-sm text-slate-500 dark:text-slate-400">Filtrando por:</span>
+
             <span id="active-category-text" class="px-3 py-1.5 rounded-full bg-alagoinhas-100 dark:bg-white/10 text-alagoinhas-700 dark:text-alagoinhas-200 text-xs font-semibold"></span>
+
             <button id="clear-category" type="button" class="text-xs text-alagoinhas-500 hover:text-alagoinhas-700 underline underline-offset-2 cursor-pointer">limpar</button>
+
         </div>
 
-        <div id="events" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        <section id="featured-section" class="mb-8">
+
+                    <div class="flex items-center justify-between gap-3 mb-4">
+
+                        <div>
+
+                            <p class="text-[10px] uppercase tracking-[.16em] font-bold text-slate-500 dark:text-slate-400">Em breve</p>
+
+                            <h2 class="text-lg sm:text-xl font-bold font-display text-slate-900 dark:text-white">Em destaque</h2>
+
+                        </div>
+
+                    </div>
+
+                    <div class="featured-carousel" id="featured-carousel" role="region" aria-label="Eventos em destaque" aria-roledescription="carrossel"><div id="featured-events" class="featured-track"></div><div id="featured-dots" class="featured-dots" aria-label="Selecionar evento em destaque"></div></div>
+
+                </section>
+
+                <div id="events" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
     </main>
 
     <div id="calendar-drawer" aria-hidden="true">
+
         <div id="calendar-backdrop" class="calendar-backdrop"></div>
+
         <aside class="calendar-panel p-5 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="calendar-title">
+
             <div class="flex items-center justify-between gap-3 mb-6">
+
                 <div class="flex items-center gap-3">
+
                     <div class="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center">
+
                         <i data-lucide="calendar-days" class="w-5 h-5"></i>
+
                     </div>
+
                     <div>
+
                         <h2 id="calendar-title" class="font-display font-extrabold text-lg">Calendário</h2>
+
                         <p class="text-xs text-slate-400">Dias com eventos têm um ponto azul</p>
+
                     </div>
+
                 </div>
+
                 <button id="calendar-close" type="button" class="header-icon-button" aria-label="Fechar calendário">
+
                     <i data-lucide="x" class="w-5 h-5"></i>
+
                 </button>
+
             </div>
 
             <div class="rounded-2xl border border-white/10 bg-white/[.035] p-4">
+
                 <div class="flex items-center justify-between gap-3 mb-4">
+
                     <button id="calendar-prev" type="button" class="header-icon-button" aria-label="Mês anterior">
+
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
+
                     </button>
+
                     <h3 id="calendar-month" class="font-bold text-sm"></h3>
+
                     <button id="calendar-next" type="button" class="header-icon-button" aria-label="Próximo mês">
+
                         <i data-lucide="chevron-right" class="w-5 h-5"></i>
+
                     </button>
+
                 </div>
+
                 <div class="grid grid-cols-7 gap-1 text-center mb-2 text-[10px] uppercase font-extrabold text-slate-500">
+
                     <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+
                 </div>
+
                 <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+
             </div>
 
             <section class="mt-6">
+
                 <div class="flex items-center justify-between gap-3 mb-2">
+
                     <h3 id="calendar-selected-title" class="font-bold">Eventos do dia</h3>
+
                     <span id="calendar-selected-count" class="text-xs text-slate-400"></span>
+
                 </div>
+
                 <div id="calendar-event-list" class="text-sm text-slate-300">
+
                     <p class="py-4 text-slate-500">Selecione uma data no calendário.</p>
+
                 </div>
+
             </section>
+
         </aside>
+
     </div>
 
-    <div id="category-drawer" class="fixed inset-0 z-[9000]">
+    <div id="category-drawer" class="fixed inset-0 z-[9000]" aria-hidden="true">
+
         <div class="drawer-backdrop absolute inset-0 bg-[#132F4F]/60 dark:bg-black/70 backdrop-blur-sm" id="category-backdrop"></div>
+
         <aside class="drawer-panel absolute top-0 right-0 h-full w-full max-w-sm glass-card !rounded-none sm:!rounded-l-2xl overflow-y-auto shadow-2xl">
+
             <div class="sticky top-0 glass-effect px-5 py-4 flex items-center justify-between border-b border-slate-200 dark:border-white/10 z-10">
+
                 <div class="flex items-center gap-3">
+
                     <div class="w-8 h-8 rounded-lg bg-alagoinhas-100 dark:bg-alagoinhas-500/10 flex items-center justify-center">
+
                         <i data-lucide="tags" class="w-4 h-4 text-alagoinhas-500"></i>
+
                     </div>
+
                     <div>
+
                         <h3 class="text-base font-bold text-alagoinhas-900 dark:text-white">Categorias</h3>
+
                         <p class="text-[11px] text-slate-500 dark:text-slate-400">Filtre os eventos</p>
+
                     </div>
+
                 </div>
+
                 <button id="close-category" type="button" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center cursor-pointer transition-all">
+
                     <i data-lucide="x" class="w-4 h-4"></i>
+
                 </button>
+
             </div>
+
             <div id="category-list" class="p-5 flex flex-col gap-2"></div>
+
         </aside>
+
     </div>
 
     <div id="modal" class="fixed inset-0 z-[9500] hidden items-center justify-center p-4">
+
         <div id="modal-backdrop" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+
         <div class="relative glass-card rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+
             <button id="close-modal" type="button" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+
                 <i data-lucide="x" class="w-4 h-4"></i>
+
             </button>
+
             <div class="relative overflow-hidden rounded-t-2xl">
-                <img id="modal-img" src="" alt="" class="w-full h-64 sm:h-80 object-cover">
+
+                <img id="modal-img" src="perfil.png" alt="Imagem do evento" class="w-full h-64 sm:h-80 object-cover" onerror="this.onerror=null;this.src='perfil.png'">
+
                 <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none"></div>
+
                 <div id="modal-category" class="hidden absolute top-4 left-4"></div>
+
             </div>
+
             <div class="p-6 sm:p-8">
+
                 <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-alagoinhas-900 dark:text-white mb-3"></h2>
+
                 <p id="modal-date" class="flex items-center gap-2 text-alagoinhas-600 dark:text-alagoinhas-400 font-semibold mb-4"></p>
+
                 <p id="modal-desc" class="text-slate-600 dark:text-slate-300 leading-relaxed mb-8"></p>
+
                 <div class="flex flex-col sm:flex-row gap-4 items-center justify-between pt-6 border-t border-slate-200 dark:border-white/10">
+
                     <div id="modal-price" class="text-xl font-bold text-alagoinhas-800 dark:text-white"></div>
+
                     <a id="modal-link" href="#" target="_blank" class="hidden w-full sm:w-auto px-7 py-3 bg-alagoinhas-500 hover:bg-alagoinhas-600 text-white font-bold rounded-xl items-center justify-center gap-2 transition-all hover:-translate-y-0.5">
+
                         <i data-lucide="ticket" class="w-4 h-4"></i> Comprar Ingresso
+
                     </a>
+
                 </div>
+
             </div>
+
         </div>
+
     </div>
 
     <div id="auth-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-close-auth></div>
+
         <div class="relative glass-card rounded-2xl max-w-md w-full shadow-2xl">
-            <button onclick="closeAuthModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+
+            <button id="close-auth-modal" onclick="closeAuthModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+
                 <i data-lucide="x" class="w-4 h-4"></i>
+
             </button>
+
             <div class="p-8">
+
                 <div class="text-center mb-6">
+
                     <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-alagoinhas-400 to-alagoinhas-600 flex items-center justify-center">
+
                         <i data-lucide="user-circle" class="w-8 h-8 text-white"></i>
+
                     </div>
+
                     <h2 id="auth-title" class="text-2xl font-bold text-alagoinhas-900 dark:text-white">Entrar</h2>
+
                     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Acesse sua conta ou crie uma nova</p>
+
                 </div>
+
                 <form id="auth-form" class="space-y-4">
+
                     <div>
+
                         <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Email</label>
+
                         <input type="email" id="auth-email" required placeholder="seu@email.com" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+
                     </div>
+
                     <div>
+
                         <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Senha</label>
+
                         <input type="password" id="auth-password" required minlength="6" placeholder="••••••••" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+
                     </div>
+
                     <div id="auth-message" class="hidden text-sm font-semibold p-3 rounded-xl"></div>
+
                     <button type="submit" id="auth-submit" class="w-full bg-gradient-to-r from-alagoinhas-500 to-alagoinhas-600 hover:from-alagoinhas-400 hover:to-alagoinhas-500 text-white font-bold rounded-xl py-3 shadow-lg shadow-alagoinhas-500/25 transition-all duration-300 hover:-translate-y-0.5">Entrar</button>
+
                 </form>
+
                 <div class="relative my-6">
+
                     <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200 dark:border-white/10"></div></div>
+
                     <div class="relative flex justify-center text-sm"><span class="px-2 bg-white dark:bg-[#141B26] text-slate-500 dark:text-slate-400">ou continue com</span></div>
+
                 </div>
+
                 <button id="google-login" type="button" class="google-btn">
+
                     <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+
                         <path d="M17.64 9.20455C17.64 8.56637 17.5827 7.95273 17.4764 7.36364H9V10.845H13.8436C13.635 11.97 13.0009 12.9232 12.0477 13.5614V15.8195H14.9564C16.6582 14.2527 17.64 11.9455 17.64 9.20455Z" fill="#4285F4"/>
+
                         <path d="M9 18C11.43 18 13.4673 17.1941 14.9564 15.8195L12.0477 13.5614C11.2418 14.1014 10.2109 14.4205 9 14.4205C6.65591 14.4205 4.67182 12.8373 3.96409 10.71H0.957273V13.0418C2.43818 15.9523 5.48182 18 9 18Z" fill="#34A853"/>
+
                         <path d="M3.96409 10.71C3.78409 10.17 3.68182 9.59318 3.68182 9C3.68182 8.40682 3.78409 7.83 3.96409 7.29V4.95818H0.957273C0.347727 6.17318 0 7.54773 0 9C0 10.4523 0.347727 11.8268 0.957273 13.0418L3.96409 10.71Z" fill="#FBBC05"/>
+
                         <path d="M9 3.57955C10.3214 3.57955 11.5077 4.03364 12.4409 4.92545L15.0218 2.34455C13.4632 0.891818 11.4259 0 9 0C5.48182 0 2.43818 2.04773 0.957273 4.95818L3.96409 7.29C4.67182 5.16273 6.65591 3.57955 9 3.57955Z" fill="#EA4335"/>
+
                     </svg>
+
                     Continuar com Google
+
                 </button>
+
                 <div class="mt-6 text-center">
+
                     <button id="toggle-auth-mode" type="button" class="text-sm text-alagoinhas-500 hover:text-alagoinhas-700 font-semibold underline underline-offset-2">Não tem conta? Criar uma</button>
+
                 </div>
+
             </div>
+
         </div>
+
     </div>
 
     <div id="profile-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-close-profile></div>
+
         <div class="relative glass-card rounded-2xl max-w-md w-full shadow-2xl">
-            <button onclick="closeProfileModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+
+            <button id="close-profile-modal" onclick="closeProfileModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-xl bg-black/40 hover:bg-black/60 text-white flex items-center justify-center cursor-pointer">
+
                 <i data-lucide="x" class="w-4 h-4"></i>
+
             </button>
+
             <div class="p-8">
+
                 <div class="text-center mb-6">
+
                     <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-alagoinhas-400 to-alagoinhas-600 flex items-center justify-center overflow-hidden">
-                        <img id="profile-preview" src="" alt="" class="w-full h-full object-cover hidden">
-                        <i id="profile-icon" data-lucide="user" class="w-10 h-10 text-white"></i>
+
+                        <img id="profile-preview" src="perfil.png" alt="Prévia da foto de perfil" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='perfil.png'">
+
+                        <i id="profile-icon" data-lucide="user" class="hidden w-10 h-10 text-white"></i>
+
                     </div>
+
                     <h2 class="text-2xl font-bold text-alagoinhas-900 dark:text-white">Editar Perfil</h2>
+
                     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Atualize suas informações</p>
+
                 </div>
+
                 <form id="profile-form" class="space-y-4">
+
                     <div>
+
                         <label class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Nome</label>
+
                         <input type="text" id="profile-name" required placeholder="Seu nome" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-alagoinhas-500 focus:ring-4 focus:ring-alagoinhas-500/10 transition-all">
+
                     </div>
+
                     <div>
+
                         <label for="profile-avatar" class="block text-sm font-semibold text-alagoinhas-800 dark:text-alagoinhas-200 mb-2">Foto de Perfil</label>
+
                         <input type="file" id="profile-avatar" accept="image/jpeg,image/png,image/webp,image/gif" class="w-full bg-slate-50 dark:bg-[#0D121A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white file:mr-3 file:rounded-lg file:border-0 file:bg-alagoinhas-100 file:px-3 file:py-2 file:font-semibold file:text-alagoinhas-700">
+
                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Opcional. Escolha uma imagem do seu computador (até 5 MB).</p>
+
                     </div>
+
                     <div id="profile-message" class="hidden text-sm font-semibold p-3 rounded-xl"></div>
+
                     <button type="submit" id="profile-submit" class="w-full bg-gradient-to-r from-alagoinhas-500 to-alagoinhas-600 hover:from-alagoinhas-400 hover:to-alagoinhas-500 text-white font-bold rounded-xl py-3 shadow-lg shadow-alagoinhas-500/25 transition-all duration-300 hover:-translate-y-0.5">Salvar Alterações</button>
+
                 </form>
+
             </div>
+
         </div>
+
     </div>
 
     <footer class="relative z-10 border-t border-slate-200 dark:border-white/5 glass-effect mt-auto">
-        <div class="max-w-7xl mx-auto px-4 py-10">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center sm:text-left">
-                <div>
-                    <h2 class="font-display font-bold text-alagoinhas-900 dark:text-white mb-3">Sobre</h2>
-                    <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">O Eventos em Alagoinhas reúne shows, festas, cultura e atividades da cidade em um só lugar, ajudando você a descobrir o que acontece por perto.</p>
-                </div>
-                <div>
-                    <h2 class="font-display font-bold text-alagoinhas-900 dark:text-white mb-3">Suporte</h2>
-                    <a href="mailto:SEU_EMAIL_AQUI" class="text-sm font-semibold text-alagoinhas-600 dark:text-alagoinhas-300 hover:underline">SEU_EMAIL_AQUI</a>
-                </div>
-                <div>
-                    <h2 class="font-display font-bold text-alagoinhas-900 dark:text-white mb-3">Redes sociais</h2>
-                    <a href="https://instagram.com/SEU_USUARIO_AQUI" target="_blank" rel="noopener noreferrer" aria-label="Instagram do Eventos em Alagoinhas" title="Instagram" class="inline-flex w-11 h-11 items-center justify-center rounded-xl bg-alagoinhas-100 dark:bg-white/10 text-alagoinhas-600 dark:text-alagoinhas-300 hover:bg-alagoinhas-500 hover:text-white transition-colors">
-                        <i data-lucide="instagram" class="w-5 h-5"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="mt-8 pt-5 border-t border-slate-200 dark:border-white/10 text-center">
-                <p class="text-slate-500 dark:text-slate-400 text-xs font-medium">&copy; <span id="footer-year">2026</span> Eventos em Alagoinhas. Todos os direitos reservados.</p>
-            </div>
-        </div>
-    </footer>
 
+        <div class="max-w-7xl mx-auto px-4 py-10">
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center sm:text-left">
+
+                <div>
+
+                    <h2 class="about-heading">Sobre</h2>
+
+                    <p class="about-copy text-xs leading-5 text-slate-500/80 dark:text-slate-400/80 max-w-xs">O Eventos em Alagoinhas reúne shows, festas, cultura e atividades da cidade em um só lugar, ajudando você a descobrir o que acontece por perto.</p>
+
+                </div>
+
+                <div>
+
+                    <h2 class="font-display font-bold text-alagoinhas-900 dark:text-white mb-3">Suporte</h2>
+
+                    <a href="https://www.instagram.com/agendas.alagoinhas_/?utm_source=ig_web_button_share_sheet&dlrf=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" class="text-sm font-semibold text-alagoinhas-600 dark:text-alagoinhas-300 hover:underline">Fale conosco pelo Instagram</a>
+
+                </div>
+
+                <div>
+
+                    <h2 class="font-display font-bold text-alagoinhas-900 dark:text-white mb-3">Redes sociais</h2>
+
+                    <a href="https://www.instagram.com/agendas.alagoinhas_?utm_source=ig_web_button_share_sheet&dlrf=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" aria-label="Instagram do Eventos em Alagoinhas" title="Instagram" class="inline-flex w-11 h-11 items-center justify-center rounded-xl bg-alagoinhas-100 dark:bg-white/10 text-alagoinhas-600 dark:text-alagoinhas-300 hover:bg-alagoinhas-500 hover:text-white transition-colors">
+
+                        <svg class="instagram-brand-icon" viewBox="0 0 24 24" role="img" aria-label="Instagram" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg>
+
+                    </a>
+
+                </div>
+
+            </div>
+
+            <div class="mt-8 pt-5 border-t border-slate-200 dark:border-white/10 text-center">
+
+                <p class="text-slate-500 dark:text-slate-400 text-xs font-medium">&copy; <span id="footer-year">2026</span> Eventos em Alagoinhas. Todos os direitos reservados.</p>
+
+            </div>
+
+        </div>
+
+    </footer>
     <script src="supabase-config.js"></script>
     <script src="script.js"></script>
-    <script>
-        function refreshIcons() {
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-                window.lucide.createIcons();
-            }
-        }
-        refreshIcons();
 
-        const html = document.documentElement;
-        const settingsWrapper = document.getElementById('settings-wrapper');
-        const settingsButton = document.getElementById('settings-button');
-        const settingsMenu = document.getElementById('settings-menu');
-        const lightButton = document.getElementById('light-theme');
-        const darkButton = document.getElementById('dark-theme');
-
-        function updateThemeUI() {
-            const isDark = html.classList.contains('dark');
-            lightButton.classList.toggle('bg-alagoinhas-100', !isDark);
-            darkButton.classList.toggle('bg-alagoinhas-100', isDark);
-        }
-
-        function setTheme(theme) {
-            if (theme === 'dark') {
-                html.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-            } else {
-                html.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-            }
-            updateThemeUI();
-            refreshIcons();
-        }
-
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            html.classList.add('dark');
-        } else if (savedTheme === 'light') {
-            html.classList.remove('dark');
-        } else {
-            html.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        }
-
-        updateThemeUI();
-
-        settingsButton.addEventListener('click', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            settingsWrapper.classList.toggle('open');
-        });
-
-        settingsMenu.addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
-
-        document.addEventListener('click', function() {
-            settingsWrapper.classList.remove('open');
-        });
-
-        lightButton.addEventListener('click', function() {
-            setTheme('light');
-            settingsWrapper.classList.remove('open');
-        });
-
-        darkButton.addEventListener('click', function() {
-            setTheme('dark');
-            settingsWrapper.classList.remove('open');
-        });
-
-        function hideLoadingScreen() {
-            const loading = document.getElementById('loading-screen');
-            if (!loading) return;
-            loading.classList.add('opacity-0', 'pointer-events-none');
-            setTimeout(function() {
-                loading.classList.add('hidden');
-            }, 500);
-        }
-
-        window.hideLoadingScreen = hideLoadingScreen;
-        setTimeout(hideLoadingScreen, 3000);
-        setTimeout(refreshIcons, 100);
-    </script>
 </body>
+
 </html>
